@@ -12,7 +12,6 @@
 // ============================================================
 Game::Game()
     : m_snake(BOARD_W / 2, BOARD_H / 2)
-    , m_food{ 0, 0 }
     , m_score(0)
     , m_running(false)
     , m_grew(false)
@@ -30,7 +29,8 @@ void Game::Run()
 {
     // Set up the console once
     Renderer::SetConsoleSize(BOARD_W + 4, BOARD_H + 6);
-    SetConsoleTitleA("Snake - Classic Console Game");
+    Renderer::Init();
+    SetConsoleTitleA("Snake");
     Renderer::HideCursor();
 
     bool keepPlaying = true;
@@ -64,27 +64,59 @@ void Game::Run()
 // ============================================================
 void Game::ShowTitleScreen()
 {
+    using namespace Renderer;
     system("cls");
 
-    int totalW  = BOARD_W + 4;
-    int midRow  = (BOARD_H + 4) / 2;
+    // Outer box  (same footprint as the game border)
+    const int L  = BORDER_X;
+    const int R  = BORDER_X + BOARD_W + 1;
+    const int T  = 0;
+    const int B  = BORDER_Y + BOARD_H + 1;
 
-    auto centre = [&](int row, const std::string& s, Renderer::Color c) {
-        int col = (totalW - static_cast<int>(s.size())) / 2;
-        if (col < 0) col = 0;
-        Renderer::DrawString(col, row, s, c);
-    };
+    // Top / bottom
+    DrawString(L, T, Chars::TL, Colors::Border);
+    for (int x = L + 1; x < R; ++x) DrawString(x, T, Chars::HZ, Colors::Border);
+    DrawString(R, T, Chars::TR, Colors::Border);
+    DrawString(L, B, Chars::BL, Colors::Border);
+    for (int x = L + 1; x < R; ++x) DrawString(x, B, Chars::HZ, Colors::Border);
+    DrawString(R, B, Chars::BR, Colors::Border);
+    // Side walls
+    for (int y = T + 1; y < B; ++y) {
+        DrawString(L, y, Chars::VT, Colors::Border);
+        DrawString(R, y, Chars::VT, Colors::Border);
+    }
 
-    centre(midRow - 3, "##  SNAKE  ##",             Renderer::Color::Green);
-    centre(midRow - 1, "W / Up Arrow   - Move Up",  Renderer::Color::Cyan);
-    centre(midRow,     "S / Down Arrow - Move Down", Renderer::Color::Cyan);
-    centre(midRow + 1, "A / Left Arrow - Move Left", Renderer::Color::Cyan);
-    centre(midRow + 2, "D / Right Arrow- Move Right",Renderer::Color::Cyan);
-    centre(midRow + 4, "Press any key to start...", Renderer::Color::Yellow);
+    // ---- Content  (inner: cols 2..41, rows 1..B-1) ----
 
-    Renderer::ResetColor();
+    // Big title
+    DrawString(13, 3,  "\xe2\x97\x86\xe2\x97\x86  S N A K E  \xe2\x97\x86\xe2\x97\x86", Colors::TitleMain);
+    DrawString(12, 4,  "~ ~ Classic Console Game ~ ~",   Colors::TitleSub);
+
+    // Thin separator
+    for (int x = L + 1; x < R; ++x) DrawString(x, 6, Chars::ThinHZ, Colors::Separator);
+
+    // Controls
+    DrawString(5,  8,  "\xe2\x96\xb2  W / Up Arrow        Move Up",    Colors::HintCol);
+    DrawString(5,  9,  "\xe2\x96\xbc  S / Down Arrow      Move Down",   Colors::HintCol);
+    DrawString(5, 10,  "\xe2\x97\x80  A / Left Arrow      Move Left",   Colors::HintCol);
+    DrawString(5, 11,  "\xe2\x96\xb6  D / Right Arrow     Move Right",  Colors::HintCol);
+    DrawString(5, 12,  "   ESC                   Quit",                  Colors::DimGray);
+
+    // Thin separator
+    for (int x = L + 1; x < R; ++x) DrawString(x, 14, Chars::ThinHZ, Colors::Separator);
+
+    // Food info — draw five coloured dots
+    DrawString(7, 16, "Collect:", Colors::HintCol);
+    for (int i = 0; i < 5; ++i)
+        DrawString(16 + i * 2, 16, Chars::Food, FOOD_COLORS[i]);
+    DrawString(27, 16, "5 apples always on board", Colors::HintCol);
+
+    // Press-any-key prompt
+    DrawString(9, 19, "\xe2\x98\x85  Press any key to start  \xe2\x98\x85", Colors::PressKey);
+
+    ResetColor();
     while (!_kbhit()) Sleep(50);
-    _getch(); // consume the keypress
+    _getch();
 }
 
 // ============================================================
@@ -226,60 +258,98 @@ void Game::Render()
 // ============================================================
 void Game::DrawBorder() const
 {
-    // Top and bottom edges
-    Renderer::DrawChar(BORDER_X, BORDER_Y, '+', Renderer::Color::DarkGreen);
-    for (int x = 1; x <= BOARD_W; ++x)
-        Renderer::DrawChar(BORDER_X + x, BORDER_Y, '-', Renderer::Color::DarkGreen);
-    Renderer::DrawChar(BORDER_X + BOARD_W + 1, BORDER_Y, '+', Renderer::Color::DarkGreen);
+    using namespace Renderer;
+    const int L  = BORDER_X;
+    const int R  = BORDER_X + BOARD_W + 1;
+    const int bot = BORDER_Y + BOARD_H + 1;
 
-    int bottomY = BORDER_Y + BOARD_H + 1;
-    Renderer::DrawChar(BORDER_X, bottomY, '+', Renderer::Color::DarkGreen);
-    for (int x = 1; x <= BOARD_W; ++x)
-        Renderer::DrawChar(BORDER_X + x, bottomY, '-', Renderer::Color::DarkGreen);
-    Renderer::DrawChar(BORDER_X + BOARD_W + 1, bottomY, '+', Renderer::Color::DarkGreen);
+    // Row 0: top of the HUD box
+    DrawString(L, 0, Chars::TL, Colors::Border);
+    for (int x = L + 1; x < R; ++x) DrawString(x, 0, Chars::HZ, Colors::Border);
+    DrawString(R, 0, Chars::TR, Colors::Border);
 
-    // Left and right edges
+    // Row 1: HUD side walls (content filled by DrawHUD)
+    DrawString(L, 1, Chars::VT, Colors::Border);
+    DrawString(R, 1, Chars::VT, Colors::Border);
+
+    // Row BORDER_Y (=2): separator between HUD and game area
+    DrawString(L, BORDER_Y, Chars::ML, Colors::Border);
+    for (int x = L + 1; x < R; ++x) DrawString(x, BORDER_Y, Chars::HZ, Colors::Border);
+    DrawString(R, BORDER_Y, Chars::MR, Colors::Border);
+
+    // Game-area side walls
     for (int y = 1; y <= BOARD_H; ++y) {
-        Renderer::DrawChar(BORDER_X,              BORDER_Y + y, '|', Renderer::Color::DarkGreen);
-        Renderer::DrawChar(BORDER_X + BOARD_W + 1, BORDER_Y + y, '|', Renderer::Color::DarkGreen);
+        DrawString(L, BORDER_Y + y, Chars::VT, Colors::Border);
+        DrawString(R, BORDER_Y + y, Chars::VT, Colors::Border);
     }
+
+    // Bottom row
+    DrawString(L, bot, Chars::BL, Colors::Border);
+    for (int x = L + 1; x < R; ++x) DrawString(x, bot, Chars::HZ, Colors::Border);
+    DrawString(R, bot, Chars::BR, Colors::Border);
 }
 
 void Game::DrawHUD() const
 {
-    std::string scoreStr = "Score: " + std::to_string(m_score);
-    std::string lengthStr = "Length: " + std::to_string(m_snake.GetBody().size());
-    std::string helpStr  = "ESC: Quit";
+    using namespace Renderer;
+    // Clear HUD content row (between the two ║ walls)
+    std::string blank(BOARD_W, ' ');
+    DrawString(BORDER_X + 1, 1, blank, Colors::DimGray);
 
-    Renderer::DrawString(BORDER_X, 0, scoreStr,  Renderer::Color::Yellow);
-    // Pad to overwrite stale digits
-    Renderer::DrawString(BORDER_X + 16, 0, lengthStr, Renderer::Color::Cyan);
-    Renderer::DrawString(BORDER_X + BOARD_W - 8, 0, helpStr, Renderer::Color::DarkGray);
+    std::string scoreStr  = " \xe2\x97\x86 SCORE: " + std::to_string(m_score);
+    std::string lengthStr = "\xe2\x96\xa0 LENGTH: "
+                            + std::to_string(m_snake.GetBody().size());
+    std::string helpStr   = "ESC: Quit ";
+
+    DrawString(BORDER_X + 1,          1, scoreStr,  Colors::ScoreVal);
+    DrawString(BORDER_X + 17,         1, lengthStr, Colors::LengthCol);
+    DrawString(BORDER_X + BOARD_W - 9, 1, helpStr,  Colors::HelpCol);
 }
 
 void Game::DrawSnake() const
 {
+    using namespace Renderer;
     const auto& body = m_snake.GetBody();
-    for (size_t i = 0; i < body.size(); ++i) {
+
+    Direction dir = m_snake.GetDirection();
+    const char* head;
+    switch (dir) {
+    case Direction::RIGHT: head = Chars::Right; break;
+    case Direction::LEFT:  head = Chars::Left;  break;
+    case Direction::UP:    head = Chars::Up;    break;
+    default:               head = Chars::Down;  break;
+    }
+
+    for (int i = 0; i < (int)body.size(); ++i) {
         int sx = CellToScreenX(body[i].x);
         int sy = CellToScreenY(body[i].y);
-        char ch = (i == 0) ? '@' : 'o';
-        Renderer::Color col = (i == 0) ? Renderer::Color::Green : Renderer::Color::DarkGreen;
-        Renderer::DrawChar(sx, sy, ch, col);
+        if (i == 0)
+            DrawString(sx, sy, head, Colors::SnakeHead);
+        else
+            DrawString(sx, sy, Chars::Body, BodyColor(i));
     }
 }
 
 void Game::DrawSnakeHead() const
 {
-    const Point& head = m_snake.GetHead();
-    Renderer::DrawChar(CellToScreenX(head.x), CellToScreenY(head.y), '@', Renderer::Color::Green);
-
-    // Also redraw the segment behind the head as a body segment (it was '@' last frame)
+    using namespace Renderer;
     const auto& body = m_snake.GetBody();
-    if (body.size() > 1) {
-        const Point& neck = body[1];
-        Renderer::DrawChar(CellToScreenX(neck.x), CellToScreenY(neck.y), 'o', Renderer::Color::DarkGreen);
+
+    Direction dir = m_snake.GetDirection();
+    const char* head;
+    switch (dir) {
+    case Direction::RIGHT: head = Chars::Right; break;
+    case Direction::LEFT:  head = Chars::Left;  break;
+    case Direction::UP:    head = Chars::Up;    break;
+    default:               head = Chars::Down;  break;
     }
+
+    DrawString(CellToScreenX(body[0].x), CellToScreenY(body[0].y), head, Colors::SnakeHead);
+
+    // Redraw neck — it displayed the head glyph last frame
+    if (body.size() > 1)
+        DrawString(CellToScreenX(body[1].x), CellToScreenY(body[1].y),
+                   Chars::Body, BodyColor(1));
 }
 
 void Game::EraseTail(Point tail) const
@@ -289,21 +359,22 @@ void Game::EraseTail(Point tail) const
 
 void Game::DrawFood() const
 {
-    for (const Point& food : m_foods)
-        Renderer::DrawChar(CellToScreenX(food.x), CellToScreenY(food.y), '*', Renderer::Color::Red);
+    for (int i = 0; i < (int)m_foods.size(); ++i)
+        Renderer::DrawString(CellToScreenX(m_foods[i].x), CellToScreenY(m_foods[i].y),
+                             Renderer::Chars::Food, Renderer::FOOD_COLORS[i]);
 }
 
 void Game::ClearCell(int screenX, int screenY) const
 {
-    Renderer::DrawChar(screenX, screenY, ' ', Renderer::Color::Black);
+    Renderer::ClearAt(screenX, screenY);
 }
 
-void Game::DrawCenteredString(int row, const std::string& s) const
+void Game::DrawCenteredString(int row, const std::string& s, Renderer::RGB col) const
 {
     int totalWidth = BOARD_W + 4;
-    int col = (totalWidth - static_cast<int>(s.size())) / 2;
-    if (col < 0) col = 0;
-    Renderer::DrawString(col, row, s, Renderer::Color::White);
+    int x = (totalWidth - static_cast<int>(s.size())) / 2;
+    if (x < 0) x = 0;
+    Renderer::DrawString(x, row, s, col);
 }
 
 // ============================================================
@@ -341,27 +412,44 @@ bool Game::PointOccupied(const Point& p) const
 // ============================================================
 void Game::ShowGameOver()
 {
-    int centreRow = BORDER_Y + BOARD_H / 2 - 1;
-    int totalW    = BOARD_W + 4;
+    using namespace Renderer;
 
-    auto centre = [&](int row, const std::string& s, Renderer::Color c) {
-        int col = (totalW - static_cast<int>(s.size())) / 2;
-        if (col < 0) col = 0;
-        Renderer::DrawString(col, row, s, c);
+    // Overlay box — 28 wide, 10 tall, centred in game area
+    const int boxW = 28;
+    const int boxH = 10;
+    const int cx   = BORDER_X + 1 + (BOARD_W - boxW) / 2;     // left col of box
+    const int cy   = BORDER_Y + 1 + (BOARD_H - boxH) / 2;     // top row of box
+    const int cxR  = cx + boxW - 1;
+    const int cyB  = cy + boxH - 1;
+
+    auto hline = [&](int y, const char* lc, const char* rc, const char* fill, RGB c) {
+        DrawString(cx,  y, lc,   c);
+        for (int x = cx + 1; x < cxR; ++x) DrawString(x, y, fill, c);
+        DrawString(cxR, y, rc,   c);
+    };
+    auto row = [&](int y, const std::string& s, RGB c) {
+        // Draw side walls + padded content
+        DrawString(cx,  y, Chars::VT, Colors::BoxDim);
+        // Centre the content inside the box
+        int inner = boxW - 2;
+        int pad   = (inner - (int)s.size()) / 2;
+        std::string line(inner, ' ');
+        if (pad >= 0 && pad + (int)s.size() <= inner)
+            line.replace(pad, s.size(), s);
+        DrawString(cx + 1, y, line, c);
+        DrawString(cxR, y, Chars::VT, Colors::BoxDim);
     };
 
-    // Dim the playfield overlay
-    centre(centreRow,     "+-----------------------+", Renderer::Color::DarkGray);
-    centre(centreRow + 1, "|       GAME  OVER      |", Renderer::Color::Red);
-    centre(centreRow + 2, "|                       |", Renderer::Color::DarkGray);
+    hline(cy,  Chars::TL, Chars::TR, Chars::HZ, Colors::BoxDim);
+    row(cy + 1, "",                          Colors::White);
+    row(cy + 2, "G  A  M  E   O  V  E  R",  Colors::GameOverR);
+    row(cy + 3, "",                          Colors::White);
+    row(cy + 4, "Final Score:  " + std::to_string(m_score), Colors::ScoreVal);
+    row(cy + 5, "",                          Colors::White);
+    row(cy + 6, "R  =  Restart",             Colors::LengthCol);
+    row(cy + 7, "Q  =  Quit",                Colors::LengthCol);
+    row(cy + 8, "",                          Colors::White);
+    hline(cyB, Chars::BL, Chars::BR, Chars::HZ, Colors::BoxDim);
 
-    std::string scoreLine = "|  Final Score: " + std::to_string(m_score) + "        |";
-    // Trim/pad to fixed width of 25 chars inside the box
-    centre(centreRow + 3, scoreLine,                   Renderer::Color::Yellow);
-    centre(centreRow + 4, "|                       |", Renderer::Color::DarkGray);
-    centre(centreRow + 5, "|  R = Restart           |", Renderer::Color::Cyan);
-    centre(centreRow + 6, "|  Q = Quit              |", Renderer::Color::Cyan);
-    centre(centreRow + 7, "+-----------------------+", Renderer::Color::DarkGray);
-
-    Renderer::ResetColor();
+    ResetColor();
 }

@@ -1,5 +1,6 @@
 #pragma once
 #include "Snake.h"
+#include "Renderer.h"
 #include <random>
 #include <vector>
 
@@ -10,7 +11,7 @@ constexpr int BOARD_W     = 40;   // playfield columns (inner, excluding border)
 constexpr int BOARD_H     = 20;   // playfield rows    (inner, excluding border)
 constexpr int BORDER_X    = 1;    // left edge of the border on screen
 constexpr int BORDER_Y    = 2;    // top  edge of the border on screen (row 0-1 = HUD)
-constexpr int SPEED_MS       = 200;  // milliseconds per vertical tick
+constexpr int SPEED_MS       = 400;  // milliseconds per vertical tick
 constexpr int HORIZ_SPEED_MS = 200;  // longer delay for horizontal — console chars are ~2x taller than wide
 constexpr int FOOD_COUNT     = 5;    // how many apples are on the board at once
 
@@ -19,7 +20,7 @@ inline int CellToScreenX(int cellX) { return BORDER_X + 1 + cellX; }
 inline int CellToScreenY(int cellY) { return BORDER_Y + 1 + cellY; }
 
 // ============================================================
-//  Game — owns the game loop, state, and all subsystems
+//  Game — owns the game loop, state, and all subsystem
 // ============================================================
 class Game {
 public:
@@ -48,7 +49,7 @@ private:
     void EraseTail(Point tail) const;
     void DrawFood()  const;
     void ClearCell(int screenX, int screenY) const;
-    void DrawCenteredString(int row, const std::string& s) const;
+    void DrawCenteredString(int row, const std::string& s, Renderer::RGB col) const;
 
     // --- food ---
     void SpawnAllFood();

@@ -1,7 +1,17 @@
 {
   "permissions": {
     "allow": [
-      "Bash(\"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\2022\\\\Community\\\\MSBuild\\\\Current\\\\Bin\\\\MSBuild.exe\" SnakeGame.sln /p:Configuration=Debug /p:Platform=x64 /verbosity:minimal)"
+      "Bash(\"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\2022\\\\Community\\\\MSBuild\\\\Current\\\\Bin\\\\MSBuild.exe\" SnakeGame.sln /p:Configuration=Debug /p:Platform=x64 /verbosity:minimal)",
+      "Bash(New-Item -ItemType Directory -Force \"C:\\\\testcode\\\\game\\\\snake\\\\SnakeGame\\\\imgui\")",
+      "Bash(Out-Null)",
+      "Bash(Write-Output \"dir ready\")",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(curl -fsSL \"https://raw.githubusercontent.com/ocornut/imgui/master/imgui.h\" -o \"C:/testcode/game/snake/SnakeGame/imgui/imgui.h\")",
+      "Bash(curl -fsSL \"https://raw.githubusercontent.com/ocornut/imgui/master/imgui.cpp\" -o \"C:/testcode/game/snake/SnakeGame/imgui/imgui.cpp\")",
+      "Bash(curl -fsSL \"https://raw.githubusercontent.com/ocornut/imgui/master/imgui_draw.cpp\" -o \"C:/testcode/game/snake/SnakeGame/imgui/imgui_draw.cpp\")",
+      "Bash(curl -fsSL \"https://raw.githubusercontent.com/ocornut/imgui/master/imgui_tables.cpp\" -o \"C:/testcode/game/snake/SnakeGame/imgui/imgui_tables.cpp\")",
+      "Bash(curl -fsSL \"https://raw.githubusercontent.com/ocornut/imgui/master/imgui_widgets.cpp\" -o \"C:/testcode/game/snake/SnakeGame/imgui/imgui_widgets.cpp\")",
+      "Bash(curl -fsSL \"https://raw.githubusercontent.com/ocornut/imgui/master/imgui_internal.h\" -o \"C:/testcode/game/snake/SnakeGame/imgui/imgui_internal.h\")"
     ]
   }
 }

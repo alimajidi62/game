@@ -1,72 +1,81 @@
 #pragma once
+//  Game.h — Snake game state and logic (ImGui rendering, DX11 backend)
+//  Rendering is done entirely via ImGui DrawList; no console API.
+
 #include "Snake.h"
 #include "Renderer.h"
+
 #include <random>
 #include <vector>
+#include <chrono>
 
 // ============================================================
-//  Game constants — adjust these to taste
+//  Board constants
 // ============================================================
-constexpr int BOARD_W     = 40;   // playfield columns (inner, excluding border)
-constexpr int BOARD_H     = 20;   // playfield rows    (inner, excluding border)
-constexpr int BORDER_X    = 1;    // left edge of the border on screen
-constexpr int BORDER_Y    = 2;    // top  edge of the border on screen (row 0-1 = HUD)
-constexpr int SPEED_MS       = 400;  // milliseconds per vertical tick
-constexpr int HORIZ_SPEED_MS = 200;  // longer delay for horizontal — console chars are ~2x taller than wide
-constexpr int FOOD_COUNT     = 5;    // how many apples are on the board at once
-
-// Screen-space coords for the play area cells (0,0) -> (BOARD_W-1, BOARD_H-1)
-inline int CellToScreenX(int cellX) { return BORDER_X + 1 + cellX; }
-inline int CellToScreenY(int cellY) { return BORDER_Y + 1 + cellY; }
+constexpr int   BOARD_W    = 40;    // columns (cells)
+constexpr int   BOARD_H    = 20;    // rows    (cells)
+constexpr int   FOOD_COUNT =  5;    // live food items at once
+constexpr int   TICK_MS    = 200;   // ms per game step (equalized H/V)
 
 // ============================================================
-//  Game — owns the game loop, state, and all subsystem
+//  Game phases
 // ============================================================
-class Game {
+enum class GamePhase { Title, Playing, GameOver };
+
+// ============================================================
+//  Game class
+// ============================================================
+class Game
+{
 public:
     Game();
 
-    // Entry point — returns when the player quits
-    void Run();
+    // Called every frame from the Win32/DX11 main loop.
+    // Reads ImGui keyboard state, ticks logic at TICK_MS intervals,
+    // and issues all draw calls to ImGui DrawList.
+    void ProcessInput();              // read ImGui keys -> update direction / phase
+    void Update();                    // advance game state if tick has elapsed
+    void Render(float winW, float winH); // draw everything via ImGui
+
+    bool ShouldQuit() const { return m_quit; }
 
 private:
-    // --- phases ---
-    void ShowTitleScreen();
-    void StartNewGame();
-    void RunGameLoop();
-    void ShowGameOver();
+    // ---- phase renderers ----------------------------------------------
+    void RenderTitle   (ImDrawList* dl, float winW, float winH);
+    void RenderPlaying (ImDrawList* dl, float winW, float winH);
+    void RenderGameOver(ImDrawList* dl, float winW, float winH);
 
-    // --- per-tick helpers ---
-    void ProcessInput();
-    void Update();
-    void Render();
+    // ---- drawing helpers ----------------------------------------------
+    void DrawBoard(ImDrawList* dl, float ox, float oy) const;
+    void DrawSnake(ImDrawList* dl, float ox, float oy) const;
+    void DrawFood (ImDrawList* dl, float ox, float oy) const;
+    void DrawHUD  (float ox, float oy, float boardPxW, float boardPxH) const;
 
-    // --- drawing helpers ---
-    void DrawBorder() const;
-    void DrawHUD()    const;
-    void DrawSnake()  const;      // full redraw (used on game start)
-    void DrawSnakeHead() const;   // just the new head
-    void EraseTail(Point tail) const;
-    void DrawFood()  const;
-    void ClearCell(int screenX, int screenY) const;
-    void DrawCenteredString(int row, const std::string& s, Renderer::RGB col) const;
-
-    // --- food ---
-    void SpawnAllFood();
+    // ---- game-state helpers -------------------------------------------
+    void  ResetGame();
+    void  SpawnAllFood();
     Point SpawnOneFood() const;
     bool  PointOccupied(const Point& p) const;
 
-    // --- state ---
+    // ---- state --------------------------------------------------------
+    GamePhase          m_phase;
     Snake              m_snake;
-    std::vector<Point> m_foods;   // all active apples (always FOOD_COUNT of them)
-    Point              m_lastTail; // tail cell removed last tick (or {-1,-1} if grew)
-    int            m_score;
-    bool           m_running;     // false  => exit game loop
-    bool           m_grew;        // did the snake eat food this tick?
-    Direction      m_pendingDir;  // buffered input direction
+    std::vector<Point> m_foods;
+    int                m_score;
+    Direction          m_pendingDir;
+    bool               m_pendingGrow;   // true when snake should grow next tick
+    bool               m_quit;
 
-    // --- RNG ---
-    mutable std::mt19937                        m_rng;
-    mutable std::uniform_int_distribution<int>  m_distX;
-    mutable std::uniform_int_distribution<int>  m_distY;
+    // Board pixel origin (top-left of cell (0,0)), set each Render()
+    float              m_boardOriginX;
+    float              m_boardOriginY;
+
+    // Timing
+    using Clock = std::chrono::steady_clock;
+    Clock::time_point  m_lastTick;
+
+    // RNG
+    mutable std::mt19937                       m_rng;
+    mutable std::uniform_int_distribution<int> m_distX;
+    mutable std::uniform_int_distribution<int> m_distY;
 };

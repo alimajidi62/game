@@ -1,4 +1,4 @@
 # Agent Memory Index
 
-- [User Profile](user_profile.md) — C++ game developer targeting VS 2022, Windows console, no external libs
-- [Project State](project_state.md) — Multi-file Snake game, compiled clean 0 warnings/errors, exe at x64/Debug
+- [User Profile](user_profile.md) — VS 2022 Windows dev, multi-file preference, upgraded console -> ImGui/DX11
+- [Project State](project_state.md) — Snake game rewritten: ImGui v1.92.9 + DX11, WinMain, 900x700 window

@@ -1,385 +1,467 @@
+//  Game.cpp — Snake game logic + ImGui DrawList rendering
+//  No console API; all drawing goes through ImGui DrawList.
+
 #include "Game.h"
 #include "Renderer.h"
+#include "imgui/imgui.h"
 
-#include <conio.h>      // _kbhit(), _getch()
-#include <windows.h>    // Sleep()
-#include <algorithm>
 #include <string>
-#include <sstream>
+
+using namespace Renderer;
+using namespace std::chrono;
 
 // ============================================================
 //  Constructor
 // ============================================================
 Game::Game()
-    : m_snake(BOARD_W / 2, BOARD_H / 2)
+    : m_phase(GamePhase::Title)
+    , m_snake(BOARD_W / 2, BOARD_H / 2)
     , m_score(0)
-    , m_running(false)
-    , m_grew(false)
     , m_pendingDir(Direction::RIGHT)
+    , m_pendingGrow(false)
+    , m_quit(false)
+    , m_boardOriginX(0.f)
+    , m_boardOriginY(0.f)
+    , m_lastTick(Clock::now())
     , m_rng(std::random_device{}())
     , m_distX(0, BOARD_W - 1)
     , m_distY(0, BOARD_H - 1)
 {
-}
-
-// ============================================================
-//  Public entry point
-// ============================================================
-void Game::Run()
-{
-    // Set up the console once
-    Renderer::SetConsoleSize(BOARD_W + 4, BOARD_H + 6);
-    Renderer::Init();
-    SetConsoleTitleA("Snake");
-    Renderer::HideCursor();
-
-    bool keepPlaying = true;
-    while (keepPlaying) {
-        ShowTitleScreen();
-        StartNewGame();
-        RunGameLoop();
-        ShowGameOver();
-
-        // Ask play again?
-        // (ShowGameOver parks at 'Press R to restart or Q to quit')
-        bool answered = false;
-        while (!answered) {
-            if (_kbhit()) {
-                int ch = _getch();
-                if (ch == 'r' || ch == 'R') { answered = true; }
-                if (ch == 'q' || ch == 'Q') { answered = true; keepPlaying = false; }
-            }
-            Sleep(50);
-        }
-    }
-
-    // Restore console on exit
-    system("cls");
-    Renderer::ResetColor();
-    Renderer::ShowCursor();
-}
-
-// ============================================================
-//  Title screen
-// ============================================================
-void Game::ShowTitleScreen()
-{
-    using namespace Renderer;
-    system("cls");
-
-    // Outer box  (same footprint as the game border)
-    const int L  = BORDER_X;
-    const int R  = BORDER_X + BOARD_W + 1;
-    const int T  = 0;
-    const int B  = BORDER_Y + BOARD_H + 1;
-
-    // Top / bottom
-    DrawString(L, T, Chars::TL, Colors::Border);
-    for (int x = L + 1; x < R; ++x) DrawString(x, T, Chars::HZ, Colors::Border);
-    DrawString(R, T, Chars::TR, Colors::Border);
-    DrawString(L, B, Chars::BL, Colors::Border);
-    for (int x = L + 1; x < R; ++x) DrawString(x, B, Chars::HZ, Colors::Border);
-    DrawString(R, B, Chars::BR, Colors::Border);
-    // Side walls
-    for (int y = T + 1; y < B; ++y) {
-        DrawString(L, y, Chars::VT, Colors::Border);
-        DrawString(R, y, Chars::VT, Colors::Border);
-    }
-
-    // ---- Content  (inner: cols 2..41, rows 1..B-1) ----
-
-    // Big title
-    DrawString(13, 3,  "\xe2\x97\x86\xe2\x97\x86  S N A K E  \xe2\x97\x86\xe2\x97\x86", Colors::TitleMain);
-    DrawString(12, 4,  "~ ~ Classic Console Game ~ ~",   Colors::TitleSub);
-
-    // Thin separator
-    for (int x = L + 1; x < R; ++x) DrawString(x, 6, Chars::ThinHZ, Colors::Separator);
-
-    // Controls
-    DrawString(5,  8,  "\xe2\x96\xb2  W / Up Arrow        Move Up",    Colors::HintCol);
-    DrawString(5,  9,  "\xe2\x96\xbc  S / Down Arrow      Move Down",   Colors::HintCol);
-    DrawString(5, 10,  "\xe2\x97\x80  A / Left Arrow      Move Left",   Colors::HintCol);
-    DrawString(5, 11,  "\xe2\x96\xb6  D / Right Arrow     Move Right",  Colors::HintCol);
-    DrawString(5, 12,  "   ESC                   Quit",                  Colors::DimGray);
-
-    // Thin separator
-    for (int x = L + 1; x < R; ++x) DrawString(x, 14, Chars::ThinHZ, Colors::Separator);
-
-    // Food info — draw five coloured dots
-    DrawString(7, 16, "Collect:", Colors::HintCol);
-    for (int i = 0; i < 5; ++i)
-        DrawString(16 + i * 2, 16, Chars::Food, FOOD_COLORS[i]);
-    DrawString(27, 16, "5 apples always on board", Colors::HintCol);
-
-    // Press-any-key prompt
-    DrawString(9, 19, "\xe2\x98\x85  Press any key to start  \xe2\x98\x85", Colors::PressKey);
-
-    ResetColor();
-    while (!_kbhit()) Sleep(50);
-    _getch();
-}
-
-// ============================================================
-//  Reset everything and draw the initial frame
-// ============================================================
-void Game::StartNewGame()
-{
-    // Re-create the snake at the centre
-    m_snake      = Snake(BOARD_W / 2, BOARD_H / 2);
-    m_score      = 0;
-    m_grew       = false;
-    m_pendingDir = Direction::RIGHT;
-    m_running    = true;
-
     SpawnAllFood();
-
-    system("cls");
-    DrawBorder();
-    DrawHUD();
-    DrawSnake();   // full snake redraw
-    DrawFood();
 }
 
 // ============================================================
-//  Main game loop — runs until m_running becomes false
-// ============================================================
-void Game::RunGameLoop()
-{
-    while (m_running) {
-        DWORD start = GetTickCount();
-
-        ProcessInput();
-        Update();
-        Render();
-
-        // Use a longer delay for horizontal movement — console chars are ~2x taller than wide,
-        // so without compensation the snake visually races sideways vs. up/down.
-        Direction cur = m_snake.GetDirection();
-        DWORD tickMs = (cur == Direction::LEFT || cur == Direction::RIGHT)
-                       ? HORIZ_SPEED_MS : SPEED_MS;
-
-        DWORD elapsed = GetTickCount() - start;
-        if (elapsed < tickMs) Sleep(tickMs - elapsed);
-    }
-}
-
-// ============================================================
-//  Input — non-blocking; stores last direction for this tick
+//  ProcessInput — read ImGui keyboard state, no blocking
 // ============================================================
 void Game::ProcessInput()
 {
-    while (_kbhit()) {
-        int ch = _getch();
-
-        // Arrow keys come as two-byte sequences: 224 then the code
-        if (ch == 224 || ch == 0) {
-            ch = _getch();
-            switch (ch) {
-            case 72: m_pendingDir = Direction::UP;    break; // Up arrow
-            case 80: m_pendingDir = Direction::DOWN;  break; // Down arrow
-            case 75: m_pendingDir = Direction::LEFT;  break; // Left arrow
-            case 77: m_pendingDir = Direction::RIGHT; break; // Right arrow
-            }
-        }
-        else {
-            switch (ch) {
-            case 'w': case 'W': m_pendingDir = Direction::UP;    break;
-            case 's': case 'S': m_pendingDir = Direction::DOWN;  break;
-            case 'a': case 'A': m_pendingDir = Direction::LEFT;  break;
-            case 'd': case 'D': m_pendingDir = Direction::RIGHT; break;
-            case 27:            m_running = false; break; // ESC = quit
-            }
-        }
+    // ESC always quits
+    if (ImGui::IsKeyPressed(ImGuiKey_Escape, false))
+    {
+        m_quit = true;
+        return;
     }
+
+    // --- Title screen ---
+    if (m_phase == GamePhase::Title)
+    {
+        if (ImGui::IsKeyPressed(ImGuiKey_Enter, false) ||
+            ImGui::IsKeyPressed(ImGuiKey_Space, false))
+        {
+            ResetGame();
+            m_phase = GamePhase::Playing;
+        }
+        return;
+    }
+
+    // --- Game over ---
+    if (m_phase == GamePhase::GameOver)
+    {
+        if (ImGui::IsKeyPressed(ImGuiKey_R, false))
+        {
+            ResetGame();
+            m_phase = GamePhase::Playing;
+        }
+        if (ImGui::IsKeyPressed(ImGuiKey_Q, false))
+            m_quit = true;
+        return;
+    }
+
+    // --- Playing: direction input (IsKeyDown for held keys, one update per tick) ---
+    if (ImGui::IsKeyDown(ImGuiKey_W) || ImGui::IsKeyDown(ImGuiKey_UpArrow))
+        m_pendingDir = Direction::UP;
+    else if (ImGui::IsKeyDown(ImGuiKey_S) || ImGui::IsKeyDown(ImGuiKey_DownArrow))
+        m_pendingDir = Direction::DOWN;
+    else if (ImGui::IsKeyDown(ImGuiKey_A) || ImGui::IsKeyDown(ImGuiKey_LeftArrow))
+        m_pendingDir = Direction::LEFT;
+    else if (ImGui::IsKeyDown(ImGuiKey_D) || ImGui::IsKeyDown(ImGuiKey_RightArrow))
+        m_pendingDir = Direction::RIGHT;
 }
 
 // ============================================================
-//  Update — move snake, check collisions
+//  Update — advance game logic once per TICK_MS ms
 // ============================================================
 void Game::Update()
 {
-    // Apply buffered direction
+    if (m_phase != GamePhase::Playing)
+        return;
+
+    auto now     = Clock::now();
+    auto elapsed = duration_cast<milliseconds>(now - m_lastTick).count();
+    if (elapsed < TICK_MS)
+        return;
+    m_lastTick = now;
+
+    // Apply buffered direction (ignores 180-degree reversals inside Snake)
     m_snake.SetDirection(m_pendingDir);
 
-    // Did the snake eat food on the PREVIOUS tick?  (m_grew carries over)
-    Point removedTail = m_snake.Move(m_grew);
-    m_grew = false;
+    // Move snake; if m_pendingGrow is set from last tick, pass grew=true
+    // (Snake::Move(true) keeps the tail, making the snake one segment longer)
+    m_snake.Move(m_pendingGrow);
+    m_pendingGrow = false;
 
-    // Wall collision — head out of bounds?
     const Point& head = m_snake.GetHead();
+
+    // --- Wall collision ---
     if (head.x < 0 || head.x >= BOARD_W ||
         head.y < 0 || head.y >= BOARD_H)
     {
-        m_running = false;
+        m_phase = GamePhase::GameOver;
         return;
     }
 
-    // Self collision
-    if (m_snake.SelfCollision()) {
-        m_running = false;
+    // --- Self collision ---
+    if (m_snake.SelfCollision())
+    {
+        m_phase = GamePhase::GameOver;
         return;
     }
 
-    // Did the snake eat any food this tick?
-    for (Point& food : m_foods) {
-        if (head == food) {
-            m_grew  = true;
-            m_score += 10;
-            food = SpawnOneFood(); // replace just this apple
+    // --- Food collision ---
+    for (Point& food : m_foods)
+    {
+        if (head == food)
+        {
+            m_score      += 10;
+            m_pendingGrow = true;            // grow on next tick
+            food          = SpawnOneFood();  // replace this apple
             break;
         }
     }
-
-    // Store the removed tail so Render() can erase it
-    // We smuggle it out via a member variable
-    m_lastTail = removedTail;
 }
 
 // ============================================================
-//  Render — incremental: only redraw what changed
+//  Render — full redraw each frame via ImGui DrawList
 // ============================================================
-void Game::Render()
+void Game::Render(float winW, float winH)
 {
-    // Erase old tail (if snake didn't grow)
-    if (m_lastTail.x != -1) EraseTail(m_lastTail);
+    // Window background (covers the whole DX11 viewport)
+    ImDrawList* bgDl = ImGui::GetBackgroundDrawList();
+    bgDl->AddRectFilled({0.f, 0.f}, {winW, winH}, ToImU32(10, 10, 20));
 
-    // Draw new head
-    DrawSnakeHead();
+    // Compute centred board origin; reserve 36 px at top for HUD
+    constexpr float hudH   = 36.0f;
+    float boardPxW = BOARD_W * CELL_PX;
+    float boardPxH = BOARD_H * CELL_PX;
+    m_boardOriginX = (winW - boardPxW) * 0.5f;
+    m_boardOriginY = hudH + (winH - hudH - boardPxH) * 0.5f;
 
-    // Redraw food (in case head was on food cell last frame)
-    DrawFood();
+    ImDrawList* dl = ImGui::GetForegroundDrawList();
 
-    // HUD (score may have changed)
-    DrawHUD();
-}
+    switch (m_phase)
+    {
+    case GamePhase::Title:
+        RenderTitle(dl, winW, winH);
+        break;
 
-// ============================================================
-//  Drawing helpers
-// ============================================================
-void Game::DrawBorder() const
-{
-    using namespace Renderer;
-    const int L  = BORDER_X;
-    const int R  = BORDER_X + BOARD_W + 1;
-    const int bot = BORDER_Y + BOARD_H + 1;
+    case GamePhase::Playing:
+        RenderPlaying(dl, winW, winH);
+        break;
 
-    // Row 0: top of the HUD box
-    DrawString(L, 0, Chars::TL, Colors::Border);
-    for (int x = L + 1; x < R; ++x) DrawString(x, 0, Chars::HZ, Colors::Border);
-    DrawString(R, 0, Chars::TR, Colors::Border);
-
-    // Row 1: HUD side walls (content filled by DrawHUD)
-    DrawString(L, 1, Chars::VT, Colors::Border);
-    DrawString(R, 1, Chars::VT, Colors::Border);
-
-    // Row BORDER_Y (=2): separator between HUD and game area
-    DrawString(L, BORDER_Y, Chars::ML, Colors::Border);
-    for (int x = L + 1; x < R; ++x) DrawString(x, BORDER_Y, Chars::HZ, Colors::Border);
-    DrawString(R, BORDER_Y, Chars::MR, Colors::Border);
-
-    // Game-area side walls
-    for (int y = 1; y <= BOARD_H; ++y) {
-        DrawString(L, BORDER_Y + y, Chars::VT, Colors::Border);
-        DrawString(R, BORDER_Y + y, Chars::VT, Colors::Border);
+    case GamePhase::GameOver:
+        RenderPlaying(dl, winW, winH);   // show frozen board behind overlay
+        RenderGameOver(dl, winW, winH);
+        break;
     }
-
-    // Bottom row
-    DrawString(L, bot, Chars::BL, Colors::Border);
-    for (int x = L + 1; x < R; ++x) DrawString(x, bot, Chars::HZ, Colors::Border);
-    DrawString(R, bot, Chars::BR, Colors::Border);
 }
 
-void Game::DrawHUD() const
+// ============================================================
+//  Board / snake / food drawing helpers
+// ============================================================
+void Game::DrawBoard(ImDrawList* dl, float ox, float oy) const
 {
-    using namespace Renderer;
-    // Clear HUD content row (between the two ║ walls)
-    std::string blank(BOARD_W, ' ');
-    DrawString(BORDER_X + 1, 1, blank, Colors::DimGray);
+    float boardPxW = BOARD_W * CELL_PX;
+    float boardPxH = BOARD_H * CELL_PX;
 
-    std::string scoreStr  = " \xe2\x97\x86 SCORE: " + std::to_string(m_score);
-    std::string lengthStr = "\xe2\x96\xa0 LENGTH: "
-                            + std::to_string(m_snake.GetBody().size());
-    std::string helpStr   = "ESC: Quit ";
+    // Board fill
+    dl->AddRectFilled({ox, oy}, {ox + boardPxW, oy + boardPxH},
+                      ToImU32(Colors::BoardBg));
 
-    DrawString(BORDER_X + 1,          1, scoreStr,  Colors::ScoreVal);
-    DrawString(BORDER_X + 17,         1, lengthStr, Colors::LengthCol);
-    DrawString(BORDER_X + BOARD_W - 9, 1, helpStr,  Colors::HelpCol);
+    // Subtle grid lines
+    DrawGrid(dl, ox, oy, BOARD_W, BOARD_H);
+
+    // Bright border (1-px outside the board area)
+    dl->AddRect({ox - 1.f, oy - 1.f},
+                {ox + boardPxW + 1.f, oy + boardPxH + 1.f},
+                ToImU32(Colors::Border), 0.0f, 2.0f);
 }
 
-void Game::DrawSnake() const
+void Game::DrawSnake(ImDrawList* dl, float ox, float oy) const
 {
-    using namespace Renderer;
     const auto& body = m_snake.GetBody();
 
-    Direction dir = m_snake.GetDirection();
-    const char* head;
-    switch (dir) {
-    case Direction::RIGHT: head = Chars::Right; break;
-    case Direction::LEFT:  head = Chars::Left;  break;
-    case Direction::UP:    head = Chars::Up;    break;
-    default:               head = Chars::Down;  break;
-    }
-
-    for (int i = 0; i < (int)body.size(); ++i) {
-        int sx = CellToScreenX(body[i].x);
-        int sy = CellToScreenY(body[i].y);
+    // Draw back-to-front so head always renders on top
+    for (int i = (int)body.size() - 1; i >= 0; --i)
+    {
         if (i == 0)
-            DrawString(sx, sy, head, Colors::SnakeHead);
+        {
+            // Head — lime green, rounded, no gap
+            DrawCellRect(dl, ox, oy, body[i].x, body[i].y,
+                         ToImU32(Colors::SnakeHead), 3.5f, 0.0f);
+            // Bright yellow border tint
+            DrawCellBorder(dl, ox, oy, body[i].x, body[i].y,
+                           ToImU32(255, 255, 100, 200), 1.5f, 3.5f);
+        }
         else
-            DrawString(sx, sy, Chars::Body, BodyColor(i));
+        {
+            // Body — gradient neck->tail with gap between segments
+            RGB c = BodyColor(i);
+            DrawCellRect(dl, ox, oy, body[i].x, body[i].y,
+                         ToImU32(c, 230), 2.0f, GAP_PX);
+        }
     }
 }
 
-void Game::DrawSnakeHead() const
-{
-    using namespace Renderer;
-    const auto& body = m_snake.GetBody();
-
-    Direction dir = m_snake.GetDirection();
-    const char* head;
-    switch (dir) {
-    case Direction::RIGHT: head = Chars::Right; break;
-    case Direction::LEFT:  head = Chars::Left;  break;
-    case Direction::UP:    head = Chars::Up;    break;
-    default:               head = Chars::Down;  break;
-    }
-
-    DrawString(CellToScreenX(body[0].x), CellToScreenY(body[0].y), head, Colors::SnakeHead);
-
-    // Redraw neck — it displayed the head glyph last frame
-    if (body.size() > 1)
-        DrawString(CellToScreenX(body[1].x), CellToScreenY(body[1].y),
-                   Chars::Body, BodyColor(1));
-}
-
-void Game::EraseTail(Point tail) const
-{
-    ClearCell(CellToScreenX(tail.x), CellToScreenY(tail.y));
-}
-
-void Game::DrawFood() const
+void Game::DrawFood(ImDrawList* dl, float ox, float oy) const
 {
     for (int i = 0; i < (int)m_foods.size(); ++i)
-        Renderer::DrawString(CellToScreenX(m_foods[i].x), CellToScreenY(m_foods[i].y),
-                             Renderer::Chars::Food, Renderer::FOOD_COLORS[i]);
+    {
+        const RGB& fc = FOOD_COLORS[i];
+        // Soft glow ring (large semi-transparent circle)
+        DrawCellGlow(dl, ox, oy, m_foods[i].x, m_foods[i].y,
+                     ToImU32(fc, 55));
+        // Solid core circle
+        DrawCellCircle(dl, ox, oy, m_foods[i].x, m_foods[i].y,
+                       ToImU32(fc), 0.32f);
+    }
 }
 
-void Game::ClearCell(int screenX, int screenY) const
+void Game::DrawHUD(float ox, float /*oy*/, float boardPxW, float /*boardPxH*/) const
 {
-    Renderer::ClearAt(screenX, screenY);
-}
+    // Transparent overlay window pinned above the board
+    ImGuiWindowFlags flags =
+        ImGuiWindowFlags_NoTitleBar         |
+        ImGuiWindowFlags_NoResize           |
+        ImGuiWindowFlags_NoMove             |
+        ImGuiWindowFlags_NoScrollbar        |
+        ImGuiWindowFlags_NoBackground       |
+        ImGuiWindowFlags_NoSavedSettings    |
+        ImGuiWindowFlags_NoNav;
 
-void Game::DrawCenteredString(int row, const std::string& s, Renderer::RGB col) const
-{
-    int totalWidth = BOARD_W + 4;
-    int x = (totalWidth - static_cast<int>(s.size())) / 2;
-    if (x < 0) x = 0;
-    Renderer::DrawString(x, row, s, col);
+    ImGui::SetNextWindowPos ({ox,         4.0f},       ImGuiCond_Always);
+    ImGui::SetNextWindowSize({boardPxW, 28.0f},        ImGuiCond_Always);
+    ImGui::SetNextWindowBgAlpha(0.0f);
+
+    if (ImGui::Begin("##hud", nullptr, flags))
+    {
+        // Score (yellow)
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 0.9f, 0.16f, 1.f));
+        ImGui::Text("SCORE: %d", m_score);
+        ImGui::PopStyleColor();
+
+        // Length (cyan)
+        ImGui::SameLine(boardPxW * 0.35f);
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.31f, 0.82f, 1.f, 1.f));
+        ImGui::Text("LENGTH: %d", (int)m_snake.GetBody().size());
+        ImGui::PopStyleColor();
+
+        // Help hint (dim grey)
+        ImGui::SameLine(boardPxW * 0.72f);
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.33f, 0.33f, 0.33f, 1.f));
+        ImGui::Text("ESC: Quit");
+        ImGui::PopStyleColor();
+    }
+    ImGui::End();
 }
 
 // ============================================================
-//  Food spawning — keeps trying until not on snake or other food
+//  Phase renderers
 // ============================================================
+void Game::RenderPlaying(ImDrawList* dl, float /*winW*/, float /*winH*/)
+{
+    float ox = m_boardOriginX;
+    float oy = m_boardOriginY;
+    DrawBoard(dl, ox, oy);
+    DrawFood (dl, ox, oy);
+    DrawSnake(dl, ox, oy);
+    DrawHUD  (ox, oy, BOARD_W * CELL_PX, BOARD_H * CELL_PX);
+}
+
+void Game::RenderTitle(ImDrawList* /*dl*/, float winW, float winH)
+{
+    float popW = 480.0f, popH = 350.0f;
+    ImGui::SetNextWindowPos ({(winW - popW) * 0.5f, (winH - popH) * 0.5f},
+                              ImGuiCond_Always);
+    ImGui::SetNextWindowSize({popW, popH}, ImGuiCond_Always);
+    ImGui::SetNextWindowBgAlpha(0.95f);
+
+    ImGuiWindowFlags flags =
+        ImGuiWindowFlags_NoTitleBar   |
+        ImGuiWindowFlags_NoResize     |
+        ImGuiWindowFlags_NoMove       |
+        ImGuiWindowFlags_NoScrollbar  |
+        ImGuiWindowFlags_NoSavedSettings;
+
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.06f, 0.06f, 0.14f, 0.97f));
+    ImGui::PushStyleColor(ImGuiCol_Border,   ImVec4(0.18f, 0.60f, 1.00f, 1.00f));
+    ImGui::PushStyleVar  (ImGuiStyleVar_WindowBorderSize, 2.0f);
+    ImGui::PushStyleVar  (ImGuiStyleVar_WindowRounding,   8.0f);
+
+    if (ImGui::Begin("##title", nullptr, flags))
+    {
+        float cw = ImGui::GetContentRegionAvail().x;
+
+        // Big title
+        ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 14.0f);
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.31f, 1.00f, 0.31f, 1.f));
+        const char* titleStr = "  S  N  A  K  E  ";
+        float tw = ImGui::CalcTextSize(titleStr).x;
+        ImGui::SetCursorPosX((cw - tw) * 0.5f);
+        ImGui::Text("%s", titleStr);
+        ImGui::PopStyleColor();
+
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.43f, 0.67f, 0.43f, 1.f));
+        const char* subStr = "~ ~ Classic Arcade Game ~ ~";
+        float sw = ImGui::CalcTextSize(subStr).x;
+        ImGui::SetCursorPosX((cw - sw) * 0.5f);
+        ImGui::Text("%s", subStr);
+        ImGui::PopStyleColor();
+
+        ImGui::Spacing();
+        ImGui::Separator();
+        ImGui::Spacing();
+
+        // Controls
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.63f, 0.63f, 0.63f, 1.f));
+        ImGui::Text("  W / Up Arrow        Move Up");
+        ImGui::Text("  S / Down Arrow      Move Down");
+        ImGui::Text("  A / Left Arrow      Move Left");
+        ImGui::Text("  D / Right Arrow     Move Right");
+        ImGui::Text("  ESC                 Quit");
+        ImGui::Spacing();
+        ImGui::Separator();
+        ImGui::Spacing();
+
+        // Food dots row
+        ImGui::Text("  Collect: ");
+        ImGui::PopStyleColor();
+        ImGui::SameLine();
+
+        // Draw 5 tiny food circles inline using the window draw list
+        ImDrawList* wdl = ImGui::GetWindowDrawList();
+        ImVec2 dotBase  = ImGui::GetCursorScreenPos();
+        dotBase.y      += ImGui::GetTextLineHeight() * 0.45f;
+        for (int i = 0; i < 5; ++i)
+        {
+            RGB fc = FOOD_COLORS[i];
+            wdl->AddCircleFilled(
+                {dotBase.x + i * 22.0f + 8.0f, dotBase.y},
+                7.0f, ToImU32(fc));
+        }
+        ImGui::Dummy({5 * 22.0f + 16.0f, ImGui::GetTextLineHeight()});
+
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.63f, 0.63f, 0.63f, 1.f));
+        ImGui::Text("  5 apples always on the board");
+        ImGui::PopStyleColor();
+
+        ImGui::Spacing();
+        ImGui::Separator();
+        ImGui::Spacing();
+
+        // Prompt
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.00f, 0.86f, 0.31f, 1.f));
+        const char* promptStr = "Press ENTER or SPACE to start";
+        float pw = ImGui::CalcTextSize(promptStr).x;
+        ImGui::SetCursorPosX((cw - pw) * 0.5f);
+        ImGui::Text("%s", promptStr);
+        ImGui::PopStyleColor();
+    }
+    ImGui::End();
+
+    ImGui::PopStyleVar(2);
+    ImGui::PopStyleColor(2);
+}
+
+void Game::RenderGameOver(ImDrawList* /*dl*/, float winW, float winH)
+{
+    float popW = 320.0f, popH = 220.0f;
+    ImGui::SetNextWindowPos ({(winW - popW) * 0.5f, (winH - popH) * 0.5f},
+                              ImGuiCond_Always);
+    ImGui::SetNextWindowSize({popW, popH}, ImGuiCond_Always);
+    ImGui::SetNextWindowBgAlpha(0.96f);
+
+    ImGuiWindowFlags flags =
+        ImGuiWindowFlags_NoTitleBar   |
+        ImGuiWindowFlags_NoResize     |
+        ImGuiWindowFlags_NoMove       |
+        ImGuiWindowFlags_NoScrollbar  |
+        ImGuiWindowFlags_NoSavedSettings;
+
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.06f, 0.04f, 0.04f, 0.96f));
+    ImGui::PushStyleColor(ImGuiCol_Border,   ImVec4(0.80f, 0.20f, 0.20f, 1.00f));
+    ImGui::PushStyleVar  (ImGuiStyleVar_WindowBorderSize, 2.0f);
+    ImGui::PushStyleVar  (ImGuiStyleVar_WindowRounding,   8.0f);
+
+    if (ImGui::Begin("##gameover", nullptr, flags))
+    {
+        float cw = ImGui::GetContentRegionAvail().x;
+
+        ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 16.0f);
+
+        // "GAME OVER"
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 0.20f, 0.20f, 1.f));
+        const char* goStr = "G  A  M  E   O  V  E  R";
+        float gw = ImGui::CalcTextSize(goStr).x;
+        ImGui::SetCursorPosX((cw - gw) * 0.5f);
+        ImGui::Text("%s", goStr);
+        ImGui::PopStyleColor();
+
+        ImGui::Spacing();
+        ImGui::Separator();
+        ImGui::Spacing();
+
+        // Final score
+        std::string scoreStr = "Final Score:  " + std::to_string(m_score);
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.f, 0.9f, 0.16f, 1.f));
+        float fs = ImGui::CalcTextSize(scoreStr.c_str()).x;
+        ImGui::SetCursorPosX((cw - fs) * 0.5f);
+        ImGui::Text("%s", scoreStr.c_str());
+        ImGui::PopStyleColor();
+
+        // Length
+        std::string lenStr = "Length:  " + std::to_string((int)m_snake.GetBody().size());
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.31f, 0.82f, 1.f, 1.f));
+        float ls = ImGui::CalcTextSize(lenStr.c_str()).x;
+        ImGui::SetCursorPosX((cw - ls) * 0.5f);
+        ImGui::Text("%s", lenStr.c_str());
+        ImGui::PopStyleColor();
+
+        ImGui::Spacing();
+        ImGui::Separator();
+        ImGui::Spacing();
+
+        // R / Q options
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.63f, 0.63f, 0.63f, 1.f));
+        const char* rStr = "R  =  Restart";
+        float rw = ImGui::CalcTextSize(rStr).x;
+        ImGui::SetCursorPosX((cw - rw) * 0.5f);
+        ImGui::Text("%s", rStr);
+
+        const char* qStr = "Q  =  Quit";
+        float qw = ImGui::CalcTextSize(qStr).x;
+        ImGui::SetCursorPosX((cw - qw) * 0.5f);
+        ImGui::Text("%s", qStr);
+        ImGui::PopStyleColor();
+    }
+    ImGui::End();
+
+    ImGui::PopStyleVar(2);
+    ImGui::PopStyleColor(2);
+}
+
+// ============================================================
+//  Internal helpers
+// ============================================================
+void Game::ResetGame()
+{
+    m_snake       = Snake(BOARD_W / 2, BOARD_H / 2);
+    m_score       = 0;
+    m_pendingDir  = Direction::RIGHT;
+    m_pendingGrow = false;
+    m_lastTick    = Clock::now();
+    SpawnAllFood();
+}
+
 void Game::SpawnAllFood()
 {
     m_foods.clear();
@@ -405,51 +487,4 @@ bool Game::PointOccupied(const Point& p) const
     for (const Point& f : m_foods)
         if (f == p) return true;
     return false;
-}
-
-// ============================================================
-//  Game Over screen
-// ============================================================
-void Game::ShowGameOver()
-{
-    using namespace Renderer;
-
-    // Overlay box — 28 wide, 10 tall, centred in game area
-    const int boxW = 28;
-    const int boxH = 10;
-    const int cx   = BORDER_X + 1 + (BOARD_W - boxW) / 2;     // left col of box
-    const int cy   = BORDER_Y + 1 + (BOARD_H - boxH) / 2;     // top row of box
-    const int cxR  = cx + boxW - 1;
-    const int cyB  = cy + boxH - 1;
-
-    auto hline = [&](int y, const char* lc, const char* rc, const char* fill, RGB c) {
-        DrawString(cx,  y, lc,   c);
-        for (int x = cx + 1; x < cxR; ++x) DrawString(x, y, fill, c);
-        DrawString(cxR, y, rc,   c);
-    };
-    auto row = [&](int y, const std::string& s, RGB c) {
-        // Draw side walls + padded content
-        DrawString(cx,  y, Chars::VT, Colors::BoxDim);
-        // Centre the content inside the box
-        int inner = boxW - 2;
-        int pad   = (inner - (int)s.size()) / 2;
-        std::string line(inner, ' ');
-        if (pad >= 0 && pad + (int)s.size() <= inner)
-            line.replace(pad, s.size(), s);
-        DrawString(cx + 1, y, line, c);
-        DrawString(cxR, y, Chars::VT, Colors::BoxDim);
-    };
-
-    hline(cy,  Chars::TL, Chars::TR, Chars::HZ, Colors::BoxDim);
-    row(cy + 1, "",                          Colors::White);
-    row(cy + 2, "G  A  M  E   O  V  E  R",  Colors::GameOverR);
-    row(cy + 3, "",                          Colors::White);
-    row(cy + 4, "Final Score:  " + std::to_string(m_score), Colors::ScoreVal);
-    row(cy + 5, "",                          Colors::White);
-    row(cy + 6, "R  =  Restart",             Colors::LengthCol);
-    row(cy + 7, "Q  =  Quit",                Colors::LengthCol);
-    row(cy + 8, "",                          Colors::White);
-    hline(cyB, Chars::BL, Chars::BR, Chars::HZ, Colors::BoxDim);
-
-    ResetColor();
 }

@@ -3,15 +3,6 @@
 A classic Snake game built in **C++** with a **Dear ImGui + DirectX 11** graphical frontend,
 fully buildable in **Visual Studio 2022**.
 
----
-
-## Preview — Sprite Sheet
-
-<p align="center">
-  <img src="snake/SnakeGame/assets/snake_sprite_sheet.png" alt="Snake sprite sheet" width="360"/>
-</p>
-
----
 
 ## What the Snake Looks Like
 

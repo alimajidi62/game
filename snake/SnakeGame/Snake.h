@@ -28,6 +28,9 @@ public:
     const Point&   GetHead()       const { return m_body.front(); }
     const std::deque<Point>& GetBody() const { return m_body; }
 
+    // Wrap the head position so it stays within [0,boardW) x [0,boardH)
+    void WrapHead(int boardW, int boardH);
+
     // Returns true if the head overlaps any body segment (self-collision)
     bool SelfCollision() const;
 

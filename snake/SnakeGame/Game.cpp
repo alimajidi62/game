@@ -218,15 +218,10 @@ void Game::Update()
     m_snake.Move(m_pendingGrow);
     m_pendingGrow = false;
 
-    const Point& head = m_snake.GetHead();
+    // Wrap head to opposite edge instead of dying on wall
+    m_snake.WrapHead(BOARD_W, BOARD_H);
 
-    // --- Wall collision ---
-    if (head.x < 0 || head.x >= BOARD_W ||
-        head.y < 0 || head.y >= BOARD_H)
-    {
-        m_phase = GamePhase::GameOver;
-        return;
-    }
+    const Point& head = m_snake.GetHead();
 
     // --- Self collision ---
     if (m_snake.SelfCollision())

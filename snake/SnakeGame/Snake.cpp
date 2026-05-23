@@ -46,6 +46,15 @@ void Snake::SetDirection(Direction dir)
     m_dir = dir;
 }
 
+void Snake::WrapHead(int boardW, int boardH)
+{
+    Point& head = m_body.front();
+    if (head.x < 0)       head.x = boardW - 1;
+    else if (head.x >= boardW) head.x = 0;
+    if (head.y < 0)       head.y = boardH - 1;
+    else if (head.y >= boardH) head.y = 0;
+}
+
 bool Snake::SelfCollision() const
 {
     const Point& head = m_body.front();

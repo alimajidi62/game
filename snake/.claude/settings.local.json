@@ -11,7 +11,10 @@
       "Bash(curl -fsSL \"https://raw.githubusercontent.com/ocornut/imgui/master/imgui_draw.cpp\" -o \"C:/testcode/game/snake/SnakeGame/imgui/imgui_draw.cpp\")",
       "Bash(curl -fsSL \"https://raw.githubusercontent.com/ocornut/imgui/master/imgui_tables.cpp\" -o \"C:/testcode/game/snake/SnakeGame/imgui/imgui_tables.cpp\")",
       "Bash(curl -fsSL \"https://raw.githubusercontent.com/ocornut/imgui/master/imgui_widgets.cpp\" -o \"C:/testcode/game/snake/SnakeGame/imgui/imgui_widgets.cpp\")",
-      "Bash(curl -fsSL \"https://raw.githubusercontent.com/ocornut/imgui/master/imgui_internal.h\" -o \"C:/testcode/game/snake/SnakeGame/imgui/imgui_internal.h\")"
+      "Bash(curl -fsSL \"https://raw.githubusercontent.com/ocornut/imgui/master/imgui_internal.h\" -o \"C:/testcode/game/snake/SnakeGame/imgui/imgui_internal.h\")",
+      "Bash(\"C:/Program Files/Microsoft Visual Studio/2022/Community/MSBuild/Current/Bin/MSBuild.exe\" SnakeGame.sln /p:Configuration=Debug /p:Platform=x64 /t:Build /nologo /v:minimal)",
+      "PowerShell(& \"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\2022\\\\Community\\\\MSBuild\\\\Current\\\\Bin\\\\MSBuild.exe\" \"C:\\\\testcode\\\\game\\\\snake\\\\SnakeGame.sln\" /p:Configuration=Debug /p:Platform=x64 /t:Build /nologo /v:minimal 2>&1)",
+      "PowerShell(& \"C:\\\\Program Files\\\\Microsoft Visual Studio\\\\2022\\\\Community\\\\MSBuild\\\\Current\\\\Bin\\\\MSBuild.exe\" \"C:\\\\testcode\\\\game\\\\snake\\\\SnakeGame.sln\" /p:Configuration=Debug /p:Platform=x64 /t:ClCompile /v:minimal 2>&1 | Select-Object -First 20)"
     ]
   }
 }

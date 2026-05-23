@@ -7,18 +7,14 @@
 //
 //  Corner naming matches the OpenGameArt CC0 "snake_graphics" pack:
 //
-//    body_topright.png   — curve occupies top-right quadrant of the cell
-//                          (body comes from the LEFT and exits DOWNWARD,
-//                           or equivalently comes from BELOW and exits RIGHT)
-//    body_topleft.png    — curve occupies top-left quadrant
-//                          (body comes from RIGHT and exits DOWNWARD,
-//                           or comes from BELOW and exits LEFT)
-//    body_bottomright.png — curve occupies bottom-right quadrant
-//                          (body comes from LEFT and exits UPWARD,
-//                           or comes from ABOVE and exits RIGHT)
-//    body_bottomleft.png  — curve occupies bottom-left quadrant
-//                          (body comes from RIGHT and exits UPWARD,
-//                           or comes from ABOVE and exits LEFT)
+//    body_topright.png    — arc in top-right quadrant; pipe opens LEFT & DOWN
+//                           (body comes from LEFT and exits DOWN, or DOWN→LEFT)
+//    body_topleft.png     — arc in top-left quadrant;  pipe opens RIGHT & DOWN
+//                           (body comes from RIGHT and exits DOWN, or DOWN→RIGHT)
+//    body_bottomright.png — arc in bottom-right quadrant; pipe opens LEFT & UP
+//                           (body comes from LEFT and exits UP, or UP→LEFT)
+//    body_bottomleft.png  — arc in bottom-left quadrant;  pipe opens RIGHT & UP
+//                           (body comes from RIGHT and exits UP, or UP→RIGHT)
 //
 //  Tail naming: tail_right.png — the blunt/rounded end is on the RIGHT side,
 //  meaning the snake body extends to the LEFT of this cell.  In other words
@@ -45,11 +41,11 @@ struct SpriteSet
     ID3D11ShaderResourceView* bodyH = nullptr;   // horizontal
     ID3D11ShaderResourceView* bodyV = nullptr;   // vertical
 
-    // Body — corner segments (named after the quadrant the curve fills)
-    ID3D11ShaderResourceView* cornerTR = nullptr;  // top-right  (from L→D or U→R)
-    ID3D11ShaderResourceView* cornerTL = nullptr;  // top-left   (from R→D or U→L)
-    ID3D11ShaderResourceView* cornerBR = nullptr;  // bottom-right (from L→U or D→R)
-    ID3D11ShaderResourceView* cornerBL = nullptr;  // bottom-left  (from R→U or D→L)
+    // Body — corner segments (named after the quadrant the curve arc fills)
+    ID3D11ShaderResourceView* cornerTR = nullptr;  // top-right   — pipe opens L & D  (L→D or D→L)
+    ID3D11ShaderResourceView* cornerTL = nullptr;  // top-left    — pipe opens R & D  (R→D or D→R)
+    ID3D11ShaderResourceView* cornerBR = nullptr;  // bottom-right — pipe opens L & U (L→U or U→L)
+    ID3D11ShaderResourceView* cornerBL = nullptr;  // bottom-left  — pipe opens R & U (R→U or U→R)
 
     // Tail — direction the tail tip points (same convention as head)
     ID3D11ShaderResourceView* tailUp    = nullptr;
@@ -85,16 +81,20 @@ inline void DrawSprite(ImDrawList*               dl,
                        int                       cellY,
                        ID3D11ShaderResourceView* srv,
                        float                     cellPx,
-                       ImU32                     tint = IM_COL32_WHITE)
+                       ImU32                     tint      = IM_COL32_WHITE,
+                       bool                      rotate180 = false)
 {
     if (!srv || !dl) return;
 
     ImVec2 pMin{ ox + cellX * cellPx,          oy + cellY * cellPx          };
     ImVec2 pMax{ ox + cellX * cellPx + cellPx, oy + cellY * cellPx + cellPx };
 
+    ImVec2 uvMin = rotate180 ? ImVec2{1.f, 1.f} : ImVec2{0.f, 0.f};
+    ImVec2 uvMax = rotate180 ? ImVec2{0.f, 0.f} : ImVec2{1.f, 1.f};
+
     dl->AddImage(
         reinterpret_cast<ImTextureID>(srv),
         pMin, pMax,
-        { 0.f, 0.f }, { 1.f, 1.f },
+        uvMin, uvMax,
         tint);
 }

@@ -37,11 +37,11 @@ Sprite support added 2026-05-23: PNG sprites loaded via stb_image → D3D11 SRVs
 - apple.png                        — food sprite (tinted per-item at draw time)
 
 ## Corner sprite selection logic (PickCornerSprite)
-- in/out = direction FROM previous segment INTO this / FROM this INTO next segment
-- (in=L, out=D) or (in=U, out=R) → cornerTR (body_topright)
-- (in=L, out=U) or (in=D, out=R) → cornerBR (body_bottomright)
-- (in=R, out=D) or (in=U, out=L) → cornerTL (body_topleft)
-- (in=R, out=U) or (in=D, out=L) → cornerBL (body_bottomleft)
+- in/out = direction FROM previous segment (head side) INTO this / FROM this INTO next (tail side)
+- body_topright   opens L & D: (in=L, out=D) or (in=D, out=L) → cornerTR
+- body_topleft    opens R & D: (in=R, out=D) or (in=D, out=R) → cornerTL
+- body_bottomright opens L & U: (in=L, out=U) or (in=U, out=L) → cornerBR
+- body_bottomleft  opens R & U: (in=R, out=U) or (in=U, out=R) → cornerBL
 
 ## ImGui source files in imgui\
 imgui.h, imgui.cpp, imgui_draw.cpp, imgui_tables.cpp, imgui_widgets.cpp,

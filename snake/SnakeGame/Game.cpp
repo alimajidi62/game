@@ -110,33 +110,42 @@ void Game::LoadSprites(ID3D11Device* device)
 
 // ============================================================
 //  PickCornerSprite
-//  'in'  = direction FROM the previous segment INTO this segment
-//  'out' = direction FROM this segment INTO the next segment
-//  Think of it as: the body enters from 'in' and exits toward 'out'.
+//  'in'  = direction FROM the previous segment (closer to head) INTO this segment
+//  'out' = direction FROM this segment INTO the next segment (closer to tail)
+//
+//  Corner sprite visual reference (the curve arc fills the named quadrant):
+//
+//    body_topright.png   — arc in top-right quadrant; pipe opens LEFT & DOWN
+//                          → snake travels LEFT→DOWN or DOWN→LEFT through this cell
+//
+//    body_topleft.png    — arc in top-left quadrant;  pipe opens RIGHT & DOWN
+//                          → snake travels RIGHT→DOWN or DOWN→RIGHT through this cell
+//
+//    body_bottomright.png — arc in bottom-right quadrant; pipe opens LEFT & UP
+//                          → snake travels LEFT→UP or UP→LEFT through this cell
+//
+//    body_bottomleft.png  — arc in bottom-left quadrant;  pipe opens RIGHT & UP
+//                          → snake travels RIGHT→UP or UP→RIGHT through this cell
 // ============================================================
 ID3D11ShaderResourceView* Game::PickCornerSprite(Direction in, Direction out) const
 {
-    // Map the (in, out) pair to the correct quadrant sprite.
-    // Entering from RIGHT means the previous cell is to the right → body
-    // connects the right side to wherever 'out' goes.
-    //
-    // Corner quadrant reference (which quadrant the curve arc occupies):
-    //   TR (top-right)    body_topright.png
-    //   TL (top-left)     body_topleft.png
-    //   BR (bottom-right) body_bottomright.png
-    //   BL (bottom-left)  body_bottomleft.png
-
     using D = Direction;
 
-    // in=LEFT  means previous segment is to the left  → body enters from left side
-    // in=RIGHT means previous segment is to the right → body enters from right side
-    // in=UP    means previous segment is above        → body enters from top
-    // in=DOWN  means previous segment is below        → body enters from bottom
-
-    if ((in == D::LEFT  && out == D::UP)   || (in == D::DOWN  && out == D::RIGHT)) return m_sprites.cornerBR;
-    if ((in == D::LEFT  && out == D::DOWN) || (in == D::UP    && out == D::RIGHT)) return m_sprites.cornerTR;
-    if ((in == D::RIGHT && out == D::UP)   || (in == D::DOWN  && out == D::LEFT))  return m_sprites.cornerBL;
-    if ((in == D::RIGHT && out == D::DOWN) || (in == D::UP    && out == D::LEFT))  return m_sprites.cornerTL;
+    // 'in' is the travel direction INTO this cell, so the entry opening is on the OPPOSITE side.
+    // 'out' is the travel direction OUT of this cell, so the exit opening is on that same side.
+    //
+    // body_topright  — arc in top-right; openings at BOTTOM & LEFT
+    //   entered from LEFT (in=RIGHT) exiting BOTTOM (out=DOWN), or entered from BOTTOM (in=UP) exiting LEFT (out=LEFT)
+    if ((in == D::RIGHT && out == D::DOWN) || (in == D::UP   && out == D::LEFT))  return m_sprites.cornerTR;
+    // body_topleft   — arc in top-left;  openings at BOTTOM & RIGHT
+    //   entered from RIGHT (in=LEFT) exiting BOTTOM (out=DOWN), or entered from BOTTOM (in=UP) exiting RIGHT (out=RIGHT)
+    if ((in == D::LEFT  && out == D::DOWN) || (in == D::UP   && out == D::RIGHT)) return m_sprites.cornerTL;
+    // body_bottomright — arc in bottom-right; openings at TOP & LEFT
+    //   entered from LEFT (in=RIGHT) exiting TOP (out=UP), or entered from TOP (in=DOWN) exiting LEFT (out=LEFT)
+    if ((in == D::RIGHT && out == D::UP)   || (in == D::DOWN && out == D::LEFT))  return m_sprites.cornerBR;
+    // body_bottomleft  — arc in bottom-left;  openings at TOP & RIGHT
+    //   entered from RIGHT (in=LEFT) exiting TOP (out=UP), or entered from TOP (in=DOWN) exiting RIGHT (out=RIGHT)
+    if ((in == D::LEFT  && out == D::UP)   || (in == D::DOWN && out == D::RIGHT)) return m_sprites.cornerBL;
 
     // Straight segments — shouldn't reach here from DrawSnake, but safe fallback
     if (in == D::LEFT || in == D::RIGHT) return m_sprites.bodyH;
@@ -365,6 +374,7 @@ void Game::DrawSnake(ImDrawList* dl, float ox, float oy) const
                     ((in == Direction::UP   || in == Direction::DOWN) &&
                      (out == Direction::UP  || out == Direction::DOWN));
 
+                bool isCorner = !isStraight;
                 if (isStraight)
                 {
                     srv = (in == Direction::LEFT || in == Direction::RIGHT)
@@ -376,7 +386,7 @@ void Game::DrawSnake(ImDrawList* dl, float ox, float oy) const
                     srv = PickCornerSprite(in, out);
                 }
 
-                DrawSprite(dl, ox, oy, seg.x, seg.y, srv, CELL_PX);
+                DrawSprite(dl, ox, oy, seg.x, seg.y, srv, CELL_PX, IM_COL32_WHITE, isCorner);
             }
         }
         return;

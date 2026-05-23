@@ -4,10 +4,15 @@
 
 #include "Snake.h"
 #include "Renderer.h"
+#include "TextureLoader.h"
+#include "SpriteRenderer.h"
 
 #include <random>
 #include <vector>
 #include <chrono>
+
+// Forward-declare D3D11 device so Game.h does not need to pull in d3d11.h
+// (main.cpp and Game.cpp both include d3d11.h before including Game.h via TextureLoader.h).
 
 // ============================================================
 //  Board constants
@@ -30,12 +35,15 @@ class Game
 public:
     Game();
 
+    // Called once after the DX11 device is created.
+    // Loads all PNG sprites from SnakeGame\assets\.
+    // Falls back gracefully to ImDrawList primitives if any load fails.
+    void LoadSprites(ID3D11Device* device);
+
     // Called every frame from the Win32/DX11 main loop.
-    // Reads ImGui keyboard state, ticks logic at TICK_MS intervals,
-    // and issues all draw calls to ImGui DrawList.
-    void ProcessInput();              // read ImGui keys -> update direction / phase
-    void Update();                    // advance game state if tick has elapsed
-    void Render(float winW, float winH); // draw everything via ImGui
+    void ProcessInput();                          // read ImGui keys -> update direction / phase
+    void Update();                                // advance game state if tick has elapsed
+    void Render(float winW, float winH);          // draw everything via ImGui
 
     bool ShouldQuit() const { return m_quit; }
 
@@ -48,9 +56,14 @@ private:
     // ---- drawing helpers ----------------------------------------------
     void DrawBoard    (ImDrawList* dl, float ox, float oy) const;
     void DrawSnake    (ImDrawList* dl, float ox, float oy) const;
-    void DrawSnakeHead(ImDrawList* dl, float ox, float oy) const; // face with eyes + mouth
+    void DrawSnakeHead(ImDrawList* dl, float ox, float oy) const;
     void DrawFood     (ImDrawList* dl, float ox, float oy) const;
     void DrawHUD      (float ox, float oy, float boardPxW, float boardPxH) const;
+
+    // ---- sprite helpers -----------------------------------------------
+    // Pick the correct corner sprite given the direction FROM the previous
+    // segment (in) and the direction TO the next segment (out).
+    ID3D11ShaderResourceView* PickCornerSprite(Direction in, Direction out) const;
 
     // ---- game-state helpers -------------------------------------------
     void  ResetGame();
@@ -79,4 +92,8 @@ private:
     mutable std::mt19937                       m_rng;
     mutable std::uniform_int_distribution<int> m_distX;
     mutable std::uniform_int_distribution<int> m_distY;
+
+    // Sprites
+    SpriteSet          m_sprites;
+    bool               m_spritesLoaded = false;
 };

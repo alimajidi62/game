@@ -211,6 +211,11 @@ int WINAPI WinMain(
     // ---- Game object ----
     Game game;
 
+    // ---- Load sprite textures (PNG -> D3D11 SRV via stb_image) ----
+    // Must be called after CreateDeviceD3D() and ImGui_ImplDX11_Init()
+    // so the D3D11 device is fully initialised.
+    game.LoadSprites(g_pd3dDevice);
+
     // ---- Main loop ----
     bool done = false;
     while (!done)
@@ -269,6 +274,7 @@ int WINAPI WinMain(
     }
 
     // ---- Cleanup ----
+    ReleaseTextures();          // free all sprite SRVs before device teardown
     ImGui_ImplDX11_Shutdown();
     ImGui_ImplWin32_Shutdown();
     ImGui::DestroyContext();

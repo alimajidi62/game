@@ -1,15 +1,17 @@
 #pragma once
 //  Game.h — Snake game state and logic (ImGui rendering, DX11 backend)
-//  Rendering is done entirely via ImGui DrawList; no console API.
+//  Rendering: 3-D pass (Renderer3D) runs first each frame, then ImGui HUD overlays.
 
 #include "Snake.h"
 #include "Renderer.h"
 #include "TextureLoader.h"
 #include "SpriteRenderer.h"
+#include "Renderer3D.h"
 
 #include <random>
 #include <vector>
 #include <chrono>
+#include <deque>
 
 // Forward-declare D3D11 device so Game.h does not need to pull in d3d11.h
 // (main.cpp and Game.cpp both include d3d11.h before including Game.h via TextureLoader.h).
@@ -36,22 +38,32 @@ public:
     Game();
 
     // Called once after the DX11 device is created.
-    // Loads all PNG sprites from SnakeGame\assets\.
-    // Falls back gracefully to ImDrawList primitives if any load fails.
-    void LoadSprites(ID3D11Device* device);
+    // Initialises the 3-D renderer and loads sprite textures.
+    // bbWidth/bbHeight = initial back-buffer pixel dimensions.
+    void LoadSprites(ID3D11Device* device,
+                     ID3D11DeviceContext* ctx = nullptr,
+                     UINT bbWidth = 900, UINT bbHeight = 700);
+
+    // Notify the 3-D renderer that the swap-chain was resized.
+    void On3DResize(UINT newW, UINT newH);
+
+    // Expose the Renderer3D so main.cpp can call On3DResize on WM_SIZE.
+    Renderer3D& GetRenderer3D() { return m_renderer3D; }
 
     // Called every frame from the Win32/DX11 main loop.
     void ProcessInput();                          // read ImGui keys -> update direction / phase
     void Update();                                // advance game state if tick has elapsed
-    void Render(float winW, float winH);          // draw everything via ImGui
+    void Render(float winW, float winH,           // draw 3-D scene then ImGui overlays
+                ID3D11RenderTargetView* rtv = nullptr);
 
     bool ShouldQuit() const { return m_quit; }
 
 private:
     // ---- phase renderers ----------------------------------------------
-    void RenderTitle   (ImDrawList* dl, float winW, float winH);
-    void RenderPlaying (ImDrawList* dl, float winW, float winH);
-    void RenderGameOver(ImDrawList* dl, float winW, float winH);
+    void RenderTitle        (ImDrawList* dl, float winW, float winH);
+    void RenderPlaying      (ImDrawList* dl, float winW, float winH); // legacy 2-D (unused in 3-D mode)
+    void RenderGameOver     (ImDrawList* dl, float winW, float winH);
+    void Render3DOverlayHUD (float winW, float winH); // HUD overlay for 3-D mode
 
     // ---- drawing helpers ----------------------------------------------
     void DrawBoard    (ImDrawList* dl, float ox, float oy) const;
@@ -93,7 +105,11 @@ private:
     mutable std::uniform_int_distribution<int> m_distX;
     mutable std::uniform_int_distribution<int> m_distY;
 
-    // Sprites
+    // Sprites (kept for compilation; DrawSprite calls are skipped in 3-D mode)
     SpriteSet          m_sprites;
     bool               m_spritesLoaded = false;
+
+    // 3-D renderer
+    Renderer3D         m_renderer3D;
+    ID3D11RenderTargetView* m_rtv = nullptr; // borrowed from main.cpp, not owned
 };

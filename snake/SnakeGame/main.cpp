@@ -211,10 +211,10 @@ int WINAPI WinMain(
     // ---- Game object ----
     Game game;
 
-    // ---- Load sprite textures (PNG -> D3D11 SRV via stb_image) ----
+    // ---- Initialise 3-D renderer and load sprite textures ----
     // Must be called after CreateDeviceD3D() and ImGui_ImplDX11_Init()
-    // so the D3D11 device is fully initialised.
-    game.LoadSprites(g_pd3dDevice);
+    // so the D3D11 device and swap chain are fully initialised.
+    game.LoadSprites(g_pd3dDevice, g_pd3dDeviceContext, WIN_W, WIN_H);
 
     // ---- Main loop ----
     bool done = false;
@@ -238,9 +238,21 @@ int WINAPI WinMain(
             g_pSwapChain->ResizeBuffers(0,
                 g_ResizeWidth, g_ResizeHeight,
                 DXGI_FORMAT_UNKNOWN, 0);
+            // Notify 3-D renderer so its depth buffer is recreated at the new size
+            game.On3DResize(g_ResizeWidth, g_ResizeHeight);
             g_ResizeWidth = g_ResizeHeight = 0;
             CreateRenderTarget();
         }
+
+        // ---- Clear back buffer first so the 3-D pass can write into it ----
+        // The 3-D render pass (inside game.Render) binds g_pMainRenderTargetView
+        // together with its own depth/stencil buffer, draws the scene, then
+        // unbinds the DSV.  ImGui then renders its draw lists on top.
+        const float clearColor[4] = { 0.04f, 0.04f, 0.08f, 1.0f };
+        g_pd3dDeviceContext->OMSetRenderTargets(1,
+            &g_pMainRenderTargetView, nullptr);
+        g_pd3dDeviceContext->ClearRenderTargetView(
+            g_pMainRenderTargetView, clearColor);
 
         // ---- Start ImGui frame ----
         ImGui_ImplDX11_NewFrame();
@@ -253,21 +265,18 @@ int WINAPI WinMain(
 
         float winW = (float)io.DisplaySize.x;
         float winH = (float)io.DisplaySize.y;
-        game.Render(winW, winH);
+        // Pass the RTV so the 3-D render pass can bind it internally.
+        game.Render(winW, winH, g_pMainRenderTargetView);
 
         if (game.ShouldQuit())
             done = true;
 
-        // ---- Render ----
+        // ---- Finalise ImGui draw lists and flush to GPU ----
         ImGui::Render();
 
-        // Clear back buffer to the same dark background colour
-        const float clearColor[4] = { 0.04f, 0.04f, 0.08f, 1.0f };
+        // Ensure ImGui renders to the correct RTV (no DSV — 3-D pass unbound it)
         g_pd3dDeviceContext->OMSetRenderTargets(1,
             &g_pMainRenderTargetView, nullptr);
-        g_pd3dDeviceContext->ClearRenderTargetView(
-            g_pMainRenderTargetView, clearColor);
-
         ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
 
         g_pSwapChain->Present(1, 0);   // vsync on

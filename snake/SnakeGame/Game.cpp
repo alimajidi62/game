@@ -6,6 +6,7 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <d3d11.h>
+#include <d3dcompiler.h>
 
 // Define stb_image implementation here (exactly once in the project)
 #define TEXTURE_LOADER_IMPLEMENTATION
@@ -14,6 +15,7 @@
 #include "Game.h"
 #include "Renderer.h"
 #include "SpriteRenderer.h"
+#include "Renderer3D.h"
 #include "imgui/imgui.h"
 
 #include <string>
@@ -45,10 +47,20 @@ Game::Game()
 
 // ============================================================
 //  LoadSprites — called once after DX11 device is ready
+//  Also initialises the 3-D renderer (ctx and bbW/H required for that path).
 // ============================================================
-void Game::LoadSprites(ID3D11Device* device)
+void Game::LoadSprites(ID3D11Device* device,
+                       ID3D11DeviceContext* ctx,
+                       UINT bbWidth, UINT bbHeight)
 {
     if (!device) return;
+
+    // ---- Initialise 3-D renderer ----
+    if (ctx)
+    {
+        if (!m_renderer3D.Init(device, ctx, bbWidth, bbHeight))
+            OutputDebugStringA("[Game] 3-D renderer failed to initialise — 3-D view disabled.\n");
+    }
 
     // Build a helper lambda that prepends the assets path.
     // __FILE__ gives us the .cpp path; we derive assets\ relative to the
@@ -106,6 +118,14 @@ void Game::LoadSprites(ID3D11Device* device)
         OutputDebugStringA("[Game] All snake sprites loaded successfully.\n");
     else
         OutputDebugStringA("[Game] One or more sprites failed to load — using primitive fallback.\n");
+}
+
+// ============================================================
+//  On3DResize — forward resize to the 3-D renderer
+// ============================================================
+void Game::On3DResize(UINT newW, UINT newH)
+{
+    m_renderer3D.OnResize(newW, newH);
 }
 
 // ============================================================
@@ -244,13 +264,35 @@ void Game::Update()
 }
 
 // ============================================================
-//  Render — full redraw each frame via ImGui DrawList
+//  Render — 3-D scene first, then ImGui HUD / overlays on top
 // ============================================================
-void Game::Render(float winW, float winH)
+void Game::Render(float winW, float winH, ID3D11RenderTargetView* rtv)
 {
-    ImDrawList* bgDl = ImGui::GetBackgroundDrawList();
-    bgDl->AddRectFilled({0.f, 0.f}, {winW, winH}, ToImU32(10, 10, 20));
+    // Store rtv for the 3-D pass (borrowed reference, not owned)
+    m_rtv = rtv;
 
+    // ---- 3-D render pass (runs before ImGui so it lands under the HUD) ----
+    // Only draw the 3-D scene during Playing and GameOver phases.
+    // During the Title screen show only the 2-D ImGui overlay.
+    if (m_renderer3D.IsInitialised() && rtv &&
+        (m_phase == GamePhase::Playing || m_phase == GamePhase::GameOver))
+    {
+        m_renderer3D.DrawScene(rtv,
+                               m_snake.GetBody(),
+                               m_foods,
+                               BOARD_W, BOARD_H);
+        // DrawScene leaves the RTV bound (without DSV) — ImGui takes over from here.
+    }
+
+    // ---- ImGui overlay pass ----
+    // Background fill (dark navy) is only drawn when 3-D renderer is inactive
+    // (title screen), so the 3-D rendered scene shows through otherwise.
+    ImDrawList* bgDl = ImGui::GetBackgroundDrawList();
+    if (!m_renderer3D.IsInitialised() || m_phase == GamePhase::Title)
+        bgDl->AddRectFilled({0.f, 0.f}, {winW, winH}, ToImU32(10, 10, 20));
+
+    // Board origin is still used for HUD positioning — keep the calculation
+    // even though the 2-D board/snake/food are not drawn in 3-D mode.
     constexpr float hudH = 36.0f;
     float boardPxW = BOARD_W * CELL_PX;
     float boardPxH = BOARD_H * CELL_PX;
@@ -265,10 +307,10 @@ void Game::Render(float winW, float winH)
         RenderTitle(dl, winW, winH);
         break;
     case GamePhase::Playing:
-        RenderPlaying(dl, winW, winH);
+        Render3DOverlayHUD(winW, winH);   // HUD only — no 2-D board/snake/food
         break;
     case GamePhase::GameOver:
-        RenderPlaying(dl, winW, winH);
+        Render3DOverlayHUD(winW, winH);
         RenderGameOver(dl, winW, winH);
         break;
     }
@@ -578,6 +620,8 @@ void Game::DrawHUD(float ox, float /*oy*/, float boardPxW, float /*boardPxH*/) c
 // ============================================================
 //  Phase renderers
 // ============================================================
+
+// RenderPlaying — legacy 2-D path (kept for reference; not called in 3-D mode)
 void Game::RenderPlaying(ImDrawList* dl, float /*winW*/, float /*winH*/)
 {
     float ox = m_boardOriginX;
@@ -586,6 +630,20 @@ void Game::RenderPlaying(ImDrawList* dl, float /*winW*/, float /*winH*/)
     DrawFood (dl, ox, oy);
     DrawSnake(dl, ox, oy);
     DrawHUD  (ox, oy, BOARD_W * CELL_PX, BOARD_H * CELL_PX);
+}
+
+// Render3DOverlayHUD — HUD-only overlay for the 3-D scene view.
+// Draws the score/length bar and a small "ESC: Quit" hint at the top of the
+// window without touching the board area (the 3-D scene fills that).
+void Game::Render3DOverlayHUD(float winW, float /*winH*/)
+{
+    DrawHUD(m_boardOriginX, m_boardOriginY,
+            BOARD_W * CELL_PX, BOARD_H * CELL_PX);
+
+    // Semi-transparent dark bar across the top so HUD text is legible over 3-D
+    ImDrawList* bgDl = ImGui::GetBackgroundDrawList();
+    bgDl->AddRectFilled({0.f, 0.f}, {winW, 36.f},
+                        IM_COL32(8, 8, 16, 210));
 }
 
 void Game::RenderTitle(ImDrawList* /*dl*/, float winW, float winH)

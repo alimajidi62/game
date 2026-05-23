@@ -1,91 +1,89 @@
 ---
 name: project-state
-description: Snake game rewritten to Dear ImGui + DirectX 11 backend; sprites integrated from OpenGameArt CC0 pack
+description: Snake game with full 3D DirectX 11 render pass (Renderer3D) + ImGui HUD overlays
 metadata:
   type: project
 ---
 
 Snake game fully rewritten to Dear ImGui + DX11 on 2026-05-23.
-Sprite support added 2026-05-23: PNG sprites loaded via stb_image → D3D11 SRVs, rendered via ImDrawList::AddImage.
+Full 3D render pass added 2026-05-23: board floor, snake segments (boxes), food (spheres) all drawn in 3D using D3D11 + DirectXMath.
 
-**Why:** User requested ImGui/DX11 frontend (replacing Console API), then real sprite images for the snake.
+**Why:** User requested ImGui/DX11 frontend (replacing Console API), then real sprite images for the snake, then full 3D rendering.
 
-**How to apply:** All future rendering work uses ImGui DrawList API. No conio.h, no SetConsoleCursorPosition. Entry point is WinMain (Windows subsystem). Sprites loaded at startup; primitive DrawList fallback used if any texture fails.
+**How to apply:** All new rendering work goes in Renderer3D. ImGui overlays (HUD, title, game-over) remain on top of the 3D scene. Game logic (Snake.cpp) is never touched.
 
 ## File layout
 - C:\testcode\game\snake\SnakeGame.sln
-- C:\testcode\game\snake\SnakeGame\main.cpp         — WinMain, Win32 window, DX11 device, ImGui init + main loop; calls game.LoadSprites(g_pd3dDevice) and ReleaseTextures() at shutdown
-- C:\testcode\game\snake\SnakeGame\Game.h / Game.cpp — Game logic + ImGui DrawList rendering + sprite path
+- C:\testcode\game\snake\SnakeGame\main.cpp         — WinMain, Win32 window, DX11 device, ImGui init + main loop
+- C:\testcode\game\snake\SnakeGame\Game.h / Game.cpp — Game logic + phase dispatch; 3D pass runs before ImGui HUD
 - C:\testcode\game\snake\SnakeGame\Snake.h / Snake.cpp — Unchanged game logic (deque<Point>)
-- C:\testcode\game\snake\SnakeGame\Renderer.h        — DrawList helper wrappers (DrawCellRect, DrawCellCircle, DrawGrid, etc.)
-- C:\testcode\game\snake\SnakeGame\TextureLoader.h   — Header-only PNG loader (stb_image → D3D11 SRV); define TEXTURE_LOADER_IMPLEMENTATION in Game.cpp
-- C:\testcode\game\snake\SnakeGame\SpriteRenderer.h  — SpriteSet struct + DrawSprite() inline helper (AddImage wrapper)
+- C:\testcode\game\snake\SnakeGame\Renderer.h        — DrawList helper wrappers (legacy 2D, kept for fallback)
+- C:\testcode\game\snake\SnakeGame\Renderer3D.h      — Renderer3D class declaration; Vertex3D, CBPerDraw structs
+- C:\testcode\game\snake\SnakeGame\Renderer3D.cpp    — Full 3D renderer: shaders, geometry, draw calls
+- C:\testcode\game\snake\SnakeGame\Shader3D.h        — Embedded HLSL strings (kVS3D_HLSL, kPS3D_HLSL)
+- C:\testcode\game\snake\SnakeGame\TextureLoader.h   — Header-only PNG loader (stb_image → D3D11 SRV)
+- C:\testcode\game\snake\SnakeGame\SpriteRenderer.h  — SpriteSet + DrawSprite() helper (dormant in 3D mode)
 - C:\testcode\game\snake\SnakeGame\SnakeGame.vcxproj
-- C:\testcode\game\snake\SnakeGame\SnakeGame.vcxproj.filters
-- C:\testcode\game\snake\SnakeGame\imgui\            — 14 Dear ImGui source files (v1.92.9 WIP) + stb_image.h v2.30
-- C:\testcode\game\snake\SnakeGame\assets\           — 16 CC0 PNG sprites (see below)
+- C:\testcode\game\snake\SnakeGame\imgui\            — Dear ImGui v1.92.9 WIP + stb_image.h v2.30
+- C:\testcode\game\snake\SnakeGame\assets\           — 16 CC0 PNG sprites (loaded but not drawn in 3D mode)
+- C:\testcode\game\snake\x64\Debug\SnakeGame.exe     — Build output (~2.1 MB)
 
-## Sprite assets (CC0, from OpenGameArt "Snake game assets" by Clear_code)
-- head_up/down/left/right.png      — snake head (4 directions)
-- body_horizontal.png              — straight body segment (H)
-- body_vertical.png                — straight body segment (V)
-- body_topright.png                — corner, curve in top-right quadrant
-- body_topleft.png                 — corner, curve in top-left quadrant
-- body_bottomright.png             — corner, curve in bottom-right quadrant
-- body_bottomleft.png              — corner, curve in bottom-left quadrant
-- tail_up/down/left/right.png      — tail tip (4 directions)
-- apple.png                        — food sprite (tinted per-item at draw time)
+## 3D Render Architecture
 
-## Corner sprite selection logic (PickCornerSprite)
-- in/out = direction FROM previous segment (head side) INTO this / FROM this INTO next (tail side)
-- body_topright   opens L & D: (in=L, out=D) or (in=D, out=L) → cornerTR
-- body_topleft    opens R & D: (in=R, out=D) or (in=D, out=R) → cornerTL
-- body_bottomright opens L & U: (in=L, out=U) or (in=U, out=L) → cornerBR
-- body_bottomleft  opens R & U: (in=R, out=U) or (in=U, out=R) → cornerBL
+### Coordinate system
+- +X = board column (left→right), +Y = up, +Z = board row (top→bottom)
+- Board footprint: X in [0,BOARD_W], Z in [0,BOARD_H], floor at Y=0
 
-## ImGui source files in imgui\
-imgui.h, imgui.cpp, imgui_draw.cpp, imgui_tables.cpp, imgui_widgets.cpp,
-imgui_internal.h, imconfig.h, imstb_rectpack.h, imstb_textedit.h, imstb_truetype.h,
-imgui_impl_win32.h, imgui_impl_win32.cpp, imgui_impl_dx11.h, imgui_impl_dx11.cpp,
-stb_image.h (v2.30)
+### Camera
+- Eye: (boardW*0.5, boardH*1.3, -boardH*0.85)
+- Target: (boardW*0.5, 0, boardH*0.5) — board centre
+- FOV: 50°, near=0.1, far=500, aspect from window size
 
-## Key design decisions
-- Entry point: WinMain (SubSystem = Windows, not Console)
-- Linked libs: d3d11.lib; d3dcompiler.lib; dxgi.lib
-- AdditionalIncludeDirectories: $(ProjectDir); $(ProjectDir)imgui
-- Game::Render() called once per frame; full redraw (no incremental tricks needed)
-- Background drawn via ImGui::GetBackgroundDrawList(), board+snake via GetForegroundDrawList()
-- HUD drawn as a no-titlebar, no-background ImGui window positioned above the board
-- Title + game-over shown as styled ImGui windows with fixed pos
-- Snake grow: m_pendingGrow flag; Snake::Move(true) called on next tick keeps the tail
-- Tick timer: std::chrono::steady_clock, TICK_MS = 200ms
-- ImGui version: 1.92.9 WIP — AddRect signature is (p_min, p_max, col, rounding, thickness, flags)
-- stb_image: TEXTURE_LOADER_IMPLEMENTATION defined in Game.cpp (only); header-only everywhere else
-- Textures cast: (ImTextureID)(ID3D11ShaderResourceView*) — DX11 ImGui backend convention
-- Asset path resolution: tries 5 prefixes (assets\, ..\assets\, ..\..\assets\, etc.) so EXE works from VS (CWD=project dir) and when double-clicked from x64\Debug\
+### Geometry (procedural, no .obj files)
+- Floor: flat quad at Y=0 covering full board; dark greenish-grey
+- Grid: thin flat boxes (scaleY=0.005) at each integer cell boundary
+- Snake segments: box scaled to (0.88, 0.60, 0.88), sitting on floor (Y=segH/2)
+  - Head: bright green (0.51, 1.0, 0.24)
+  - Body: gradient from neck green to tail dark-green
+  - Tail: drawn in same pass, darkest at back of body
+- Food: UV sphere (radius=0.35, stacks=10, slices=14) at Y=0.5, 5 colours matching 2D palette
 
-## Visual constants (Renderer.h)
-- CELL_PX = 18.0f pixels per board cell
-- GAP_PX  = 2.0f pixel gap between snake body segments (fallback only)
-- Board: 40 x 20 cells = 720 x 360 px, centred in 900 x 700 window with 36px top HUD
+### Shaders (embedded in Shader3D.h, compiled at runtime with D3DCompile)
+- VS: transforms pos by WorldViewProj; passes world-space normal to PS
+- PS: Lambertian diffuse (one directional light from above-side) + ambient
+- Light direction (world): (0.4, 0.9, -0.3) — from upper-right
+- Ambient: (0.18, 0.18, 0.22)
+- Constant buffer (b0): WorldViewProj, World, LightDir, BaseColor, AmbientColor
 
-## Features implemented
-- WASD + arrow key input via ImGui::IsKeyDown / IsKeyPressed
-- Wall + self collision detection
-- Score and length HUD (yellow/cyan text, transparent overlay window)
-- 5 food items with apple sprites (tinted 5 different colours) or coloured circles fallback
-- Snake head: sprite (4-directional) or lime-green rounded rect with eyes+mouth fallback
-- Snake body: correct sprite per segment (straight H/V, 4 corners, tail) or gradient fallback
-- Game over overlay (red-bordered dark window, R/Q options)
-- Title screen (blue-bordered dark window, controls list)
-- ESC quits from any phase
+### Depth buffer
+- Format: DXGI_FORMAT_D24_UNORM_S8_UINT
+- Created in Renderer3D::Init(), recreated on OnResize()
+- Cleared each frame before 3D draws; unbound before ImGui renders
 
-## Input mapping (ImGui keys)
-- W / UpArrow    -> UP
-- S / DownArrow  -> DOWN
-- A / LeftArrow  -> LEFT
-- D / RightArrow -> RIGHT
-- ESC            -> Quit (any phase)
-- Enter / Space  -> Start game (title screen)
-- R              -> Restart (game over screen)
-- Q              -> Quit (game over screen)
+### Frame order each frame
+1. main.cpp: ClearRenderTargetView (dark navy)
+2. main.cpp: ImGui::NewFrame()
+3. game.Render() → Renderer3D::DrawScene() [real D3D11 draws to RTV+DSV]
+4. DrawScene unbinds DSV, leaves RTV only
+5. game.Render() → ImGui draw commands (HUD, overlays)
+6. main.cpp: ImGui::Render() + ImGui_ImplDX11_RenderDrawData()
+7. main.cpp: OMSetRenderTargets(RTV, nullptr) before ImGui flush (ensures no DSV)
+
+### Key implementation notes
+- Renderer3D.h includes Snake.h directly (needs Point for std::deque<Point> in DrawScene signature)
+- Renderer3D.cpp does NOT include Game.h (avoids circular include); uses local kBoardW/kBoardH constants
+- Sprite code (SpriteRenderer, TextureLoader, m_spritesLoaded) is preserved but DrawSprite is never called in Playing/GameOver phases
+- RenderPlaying (2D) still compiles; it's never called in 3D mode
+- Render3DOverlayHUD() draws the score/length bar + dark top strip over the 3D scene
+- Title screen still uses 2D ImGui overlay (no 3D in Title phase)
+
+## Linked libs (already in .vcxproj for all configs)
+d3d11.lib; d3dcompiler.lib; dxgi.lib
+
+## Board / window constants
+- BOARD_W = 40, BOARD_H = 20, FOOD_COUNT = 5, TICK_MS = 200ms
+- Window: 900 x 700, SubSystem = Windows (WinMain)
+- CELL_PX = 18.0f (kept in Renderer.h; repurposed as HUD layout unit)
+
+## ImGui version: 1.92.9 WIP (in imgui\)
+## Build: VS2022, C++17, x64 Debug/Release — clean rebuild confirmed 2026-05-23

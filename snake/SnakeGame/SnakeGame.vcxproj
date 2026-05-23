@@ -145,6 +145,7 @@
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Game.cpp" />
     <ClCompile Include="Snake.cpp" />
+    <ClCompile Include="Renderer3D.cpp" />
   </ItemGroup>
 
   <!-- ===== Dear ImGui core source files ===== -->
@@ -161,6 +162,8 @@
   <ItemGroup>
     <ClInclude Include="Game.h" />
     <ClInclude Include="Renderer.h" />
+    <ClInclude Include="Renderer3D.h" />
+    <ClInclude Include="Shader3D.h" />
     <ClInclude Include="Snake.h" />
     <ClInclude Include="TextureLoader.h" />
     <ClInclude Include="SpriteRenderer.h" />

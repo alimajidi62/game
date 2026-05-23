@@ -6,6 +6,7 @@
 #include "imgui/imgui.h"
 
 #include <string>
+#include <cmath>
 
 using namespace Renderer;
 using namespace std::chrono;
@@ -195,12 +196,7 @@ void Game::DrawSnake(ImDrawList* dl, float ox, float oy) const
     {
         if (i == 0)
         {
-            // Head — lime green, rounded, no gap
-            DrawCellRect(dl, ox, oy, body[i].x, body[i].y,
-                         ToImU32(Colors::SnakeHead), 3.5f, 0.0f);
-            // Bright yellow border tint
-            DrawCellBorder(dl, ox, oy, body[i].x, body[i].y,
-                           ToImU32(255, 255, 100, 200), 1.5f, 3.5f);
+            DrawSnakeHead(dl, ox, oy);
         }
         else
         {
@@ -209,6 +205,112 @@ void Game::DrawSnake(ImDrawList* dl, float ox, float oy) const
             DrawCellRect(dl, ox, oy, body[i].x, body[i].y,
                          ToImU32(c, 230), 2.0f, GAP_PX);
         }
+    }
+}
+
+void Game::DrawSnakeHead(ImDrawList* dl, float ox, float oy) const
+{
+    const Point& head = m_snake.GetHead();
+    Direction    dir  = m_snake.GetDirection();
+
+    // Open mouth when food is directly in the next cell we are moving into
+    bool mouthOpen = false;
+    {
+        Point front = head;
+        switch (dir) {
+        case Direction::RIGHT: front.x++; break;
+        case Direction::LEFT:  front.x--; break;
+        case Direction::UP:    front.y--; break;
+        case Direction::DOWN:  front.y++; break;
+        }
+        for (const Point& f : m_foods)
+            if (f == front) { mouthOpen = true; break; }
+    }
+
+    // Cell bounds (head takes full cell, no gap)
+    float x0 = ox + head.x * CELL_PX;
+    float y0 = oy + head.y * CELL_PX;
+    float x1 = x0 + CELL_PX;
+    float y1 = y0 + CELL_PX;
+    float cx = x0 + CELL_PX * 0.5f;
+    float cy = y0 + CELL_PX * 0.5f;
+    float h  = CELL_PX * 0.5f;   // half cell = 9 px
+
+    // --- Base head rectangle ---
+    dl->AddRectFilled({x0, y0}, {x1, y1}, IM_COL32(130, 255, 60, 255), 4.0f);
+    dl->AddRect({x0, y0}, {x1, y1}, IM_COL32(255, 255, 100, 190), 4.0f, 1.5f);
+
+    // --- Direction vectors (forward fd, sideways sd) ---
+    float fdx = 0.f, fdy = 0.f;   // forward unit vector
+    float sdx = 0.f, sdy = 0.f;   // sideways unit vector (perpendicular)
+    float mouthEdgeX = cx, mouthEdgeY = cy; // centre of the front edge
+    switch (dir) {
+    case Direction::RIGHT: fdx= 1.f; sdy= 1.f; mouthEdgeX=x1; mouthEdgeY=cy; break;
+    case Direction::LEFT:  fdx=-1.f; sdy= 1.f; mouthEdgeX=x0; mouthEdgeY=cy; break;
+    case Direction::UP:    fdy=-1.f; sdx= 1.f; mouthEdgeX=cx; mouthEdgeY=y0; break;
+    case Direction::DOWN:  fdy= 1.f; sdx= 1.f; mouthEdgeX=cx; mouthEdgeY=y1; break;
+    }
+
+    // --- Eyes (sit back from centre, spread sideways) ---
+    float eyeBack = h * 0.28f;   // distance behind centre
+    float eyeSide = h * 0.44f;   // lateral offset from centre
+    float eyeR    = h * 0.28f;   // eye white radius (~2.5 px)
+    float pupR    = h * 0.14f;   // pupil radius (~1.3 px)
+    float pupFwd  = pupR * 0.6f; // pupils lean forward
+
+    ImVec2 e1 = { cx - fdx*eyeBack + sdx*eyeSide,
+                  cy - fdy*eyeBack + sdy*eyeSide };
+    ImVec2 e2 = { cx - fdx*eyeBack - sdx*eyeSide,
+                  cy - fdy*eyeBack - sdy*eyeSide };
+    ImVec2 p1 = { e1.x + fdx*pupFwd, e1.y + fdy*pupFwd };
+    ImVec2 p2 = { e2.x + fdx*pupFwd, e2.y + fdy*pupFwd };
+
+    dl->AddCircleFilled(e1, eyeR, IM_COL32(255, 255, 255, 255));
+    dl->AddCircleFilled(e2, eyeR, IM_COL32(255, 255, 255, 255));
+    dl->AddCircleFilled(p1, pupR, IM_COL32(10,  20,  10,  255));
+    dl->AddCircleFilled(p2, pupR, IM_COL32(10,  20,  10,  255));
+
+    // --- Mouth ---
+    if (!mouthOpen)
+    {
+        // Closed: small arc curving toward centre from the front edge
+        float smileR = h * 0.38f;
+        ImVec2 arcCtr = { mouthEdgeX - fdx * smileR * 0.6f,
+                          mouthEdgeY - fdy * smileR * 0.6f };
+        // Arc angles: spans ~80 degrees centred on the forward direction
+        // atan2 of (fdy, fdx) gives angle pointing forward; we arc ±40 deg around it
+        float fwdAngle = atan2f(fdy, fdx);
+        dl->PathArcTo(arcCtr, smileR, fwdAngle - 0.7f, fwdAngle + 0.7f, 8);
+        dl->PathStroke(IM_COL32(170, 30, 30, 210), false, 1.3f);
+    }
+    else
+    {
+        // Open mouth: filled triangle at the front edge, red inside
+        float openW = h * 0.52f;  // half-width of jaw opening
+        float openD = h * 0.55f;  // depth into the cell
+
+        // Two jaw corners, one tip pointing outward
+        ImVec2 jaw1 = { mouthEdgeX - fdx*openD*0.4f + sdx*openW,
+                        mouthEdgeY - fdy*openD*0.4f + sdy*openW };
+        ImVec2 jaw2 = { mouthEdgeX - fdx*openD*0.4f - sdx*openW,
+                        mouthEdgeY - fdy*openD*0.4f - sdy*openW };
+        ImVec2 tip  = { mouthEdgeX + fdx*openD*0.35f,
+                        mouthEdgeY + fdy*openD*0.35f };
+
+        dl->AddTriangleFilled(jaw1, jaw2, tip, IM_COL32(200, 28, 28, 235));
+        dl->AddTriangle(jaw1, jaw2, tip, IM_COL32(100, 8,  8,  200), 1.0f);
+
+        // Forked tongue extending forward from tip
+        float tLen   = h * 0.60f;
+        float tFork  = h * 0.20f;
+        ImVec2 tMid  = { tip.x + fdx*tLen*0.6f, tip.y + fdy*tLen*0.6f };
+        ImVec2 tEnd1 = { tMid.x + fdx*tLen*0.4f + sdx*tFork,
+                         tMid.y + fdy*tLen*0.4f + sdy*tFork };
+        ImVec2 tEnd2 = { tMid.x + fdx*tLen*0.4f - sdx*tFork,
+                         tMid.y + fdy*tLen*0.4f - sdy*tFork };
+        dl->AddLine(tip,  tMid,  IM_COL32(255, 80, 100, 230), 1.3f);
+        dl->AddLine(tMid, tEnd1, IM_COL32(255, 80, 100, 210), 1.0f);
+        dl->AddLine(tMid, tEnd2, IM_COL32(255, 80, 100, 210), 1.0f);
     }
 }
 

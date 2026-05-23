@@ -46,10 +46,11 @@ private:
     void RenderGameOver(ImDrawList* dl, float winW, float winH);
 
     // ---- drawing helpers ----------------------------------------------
-    void DrawBoard(ImDrawList* dl, float ox, float oy) const;
-    void DrawSnake(ImDrawList* dl, float ox, float oy) const;
-    void DrawFood (ImDrawList* dl, float ox, float oy) const;
-    void DrawHUD  (float ox, float oy, float boardPxW, float boardPxH) const;
+    void DrawBoard    (ImDrawList* dl, float ox, float oy) const;
+    void DrawSnake    (ImDrawList* dl, float ox, float oy) const;
+    void DrawSnakeHead(ImDrawList* dl, float ox, float oy) const; // face with eyes + mouth
+    void DrawFood     (ImDrawList* dl, float ox, float oy) const;
+    void DrawHUD      (float ox, float oy, float boardPxW, float boardPxH) const;
 
     // ---- game-state helpers -------------------------------------------
     void  ResetGame();

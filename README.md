@@ -8,7 +8,7 @@ fully buildable in **Visual Studio 2022**.
 ## Preview — Sprite Sheet
 
 <p align="center">
-  <img src="SnakeGame/assets/snake_sprite_sheet.png" alt="Snake sprite sheet" width="360"/>
+  <img src="snake/SnakeGame/assets/snake_sprite_sheet.png" alt="Snake sprite sheet" width="360"/>
 </p>
 
 ---
@@ -19,14 +19,14 @@ The snake is assembled from individual directional sprites each frame:
 
 <table align="center">
   <tr>
-    <td align="center"><img src="SnakeGame/assets/tail_right.png"        width="40"/><br/><sub>tail</sub></td>
-    <td align="center"><img src="SnakeGame/assets/body_horizontal.png"   width="40"/><br/><sub>body</sub></td>
-    <td align="center"><img src="SnakeGame/assets/body_topright.png"     width="40"/><br/><sub>corner</sub></td>
-    <td align="center"><img src="SnakeGame/assets/body_vertical.png"     width="40"/><br/><sub>body</sub></td>
-    <td align="center"><img src="SnakeGame/assets/body_bottomleft.png"   width="40"/><br/><sub>corner</sub></td>
-    <td align="center"><img src="SnakeGame/assets/body_horizontal.png"   width="40"/><br/><sub>body</sub></td>
-    <td align="center"><img src="SnakeGame/assets/head_right.png"        width="40"/><br/><sub>head →</sub></td>
-    <td align="center"><img src="SnakeGame/assets/apple.png"             width="40"/><br/><sub>apple</sub></td>
+    <td align="center"><img src="snake/SnakeGame/assets/tail_right.png"        width="40"/><br/><sub>tail</sub></td>
+    <td align="center"><img src="snake/SnakeGame/assets/body_horizontal.png"   width="40"/><br/><sub>body</sub></td>
+    <td align="center"><img src="snake/SnakeGame/assets/body_topright.png"     width="40"/><br/><sub>corner</sub></td>
+    <td align="center"><img src="snake/SnakeGame/assets/body_vertical.png"     width="40"/><br/><sub>body</sub></td>
+    <td align="center"><img src="snake/SnakeGame/assets/body_bottomleft.png"   width="40"/><br/><sub>corner</sub></td>
+    <td align="center"><img src="snake/SnakeGame/assets/body_horizontal.png"   width="40"/><br/><sub>body</sub></td>
+    <td align="center"><img src="snake/SnakeGame/assets/head_right.png"        width="40"/><br/><sub>head →</sub></td>
+    <td align="center"><img src="snake/SnakeGame/assets/apple.png"             width="40"/><br/><sub>apple</sub></td>
   </tr>
 </table>
 
@@ -36,10 +36,10 @@ The snake is assembled from individual directional sprites each frame:
 
 <table align="center">
   <tr>
-    <td align="center"><img src="SnakeGame/assets/head_up.png"    width="64"/><br/><sub>▲ Up</sub></td>
-    <td align="center"><img src="SnakeGame/assets/head_down.png"  width="64"/><br/><sub>▼ Down</sub></td>
-    <td align="center"><img src="SnakeGame/assets/head_left.png"  width="64"/><br/><sub>◄ Left</sub></td>
-    <td align="center"><img src="SnakeGame/assets/head_right.png" width="64"/><br/><sub>► Right</sub></td>
+    <td align="center"><img src="snake/SnakeGame/assets/head_up.png"    width="64"/><br/><sub>▲ Up</sub></td>
+    <td align="center"><img src="snake/SnakeGame/assets/head_down.png"  width="64"/><br/><sub>▼ Down</sub></td>
+    <td align="center"><img src="snake/SnakeGame/assets/head_left.png"  width="64"/><br/><sub>◄ Left</sub></td>
+    <td align="center"><img src="snake/SnakeGame/assets/head_right.png" width="64"/><br/><sub>► Right</sub></td>
   </tr>
 </table>
 
@@ -57,12 +57,12 @@ The snake is assembled from individual directional sprites each frame:
     <th>Bottom-Left</th>
   </tr>
   <tr>
-    <td align="center"><img src="SnakeGame/assets/body_horizontal.png"   width="48"/></td>
-    <td align="center"><img src="SnakeGame/assets/body_vertical.png"     width="48"/></td>
-    <td align="center"><img src="SnakeGame/assets/body_topright.png"     width="48"/></td>
-    <td align="center"><img src="SnakeGame/assets/body_topleft.png"      width="48"/></td>
-    <td align="center"><img src="SnakeGame/assets/body_bottomright.png"  width="48"/></td>
-    <td align="center"><img src="SnakeGame/assets/body_bottomleft.png"   width="48"/></td>
+    <td align="center"><img src="snake/SnakeGame/assets/body_horizontal.png"   width="48"/></td>
+    <td align="center"><img src="snake/SnakeGame/assets/body_vertical.png"     width="48"/></td>
+    <td align="center"><img src="snake/SnakeGame/assets/body_topright.png"     width="48"/></td>
+    <td align="center"><img src="snake/SnakeGame/assets/body_topleft.png"      width="48"/></td>
+    <td align="center"><img src="snake/SnakeGame/assets/body_bottomright.png"  width="48"/></td>
+    <td align="center"><img src="snake/SnakeGame/assets/body_bottomleft.png"   width="48"/></td>
   </tr>
 </table>
 
@@ -72,10 +72,10 @@ The snake is assembled from individual directional sprites each frame:
 
 <table align="center">
   <tr>
-    <td align="center"><img src="SnakeGame/assets/tail_up.png"    width="48"/><br/><sub>▲ Up</sub></td>
-    <td align="center"><img src="SnakeGame/assets/tail_down.png"  width="48"/><br/><sub>▼ Down</sub></td>
-    <td align="center"><img src="SnakeGame/assets/tail_left.png"  width="48"/><br/><sub>◄ Left</sub></td>
-    <td align="center"><img src="SnakeGame/assets/tail_right.png" width="48"/><br/><sub>► Right</sub></td>
+    <td align="center"><img src="snake/SnakeGame/assets/tail_up.png"    width="48"/><br/><sub>▲ Up</sub></td>
+    <td align="center"><img src="snake/SnakeGame/assets/tail_down.png"  width="48"/><br/><sub>▼ Down</sub></td>
+    <td align="center"><img src="snake/SnakeGame/assets/tail_left.png"  width="48"/><br/><sub>◄ Left</sub></td>
+    <td align="center"><img src="snake/SnakeGame/assets/tail_right.png" width="48"/><br/><sub>► Right</sub></td>
   </tr>
 </table>
 
@@ -84,15 +84,15 @@ The snake is assembled from individual directional sprites each frame:
 ## Food Sprite
 
 <p align="center">
-  <img src="SnakeGame/assets/apple.png" width="64" alt="Apple"/>
+  <img src="snake/SnakeGame/assets/apple.png" width="64" alt="Apple"/>
   &nbsp;&nbsp;
-  <img src="SnakeGame/assets/apple.png" width="64" style="filter:hue-rotate(40deg)"  alt="Apple orange"/>
+  <img src="snake/SnakeGame/assets/apple.png" width="64" style="filter:hue-rotate(40deg)"  alt="Apple orange"/>
   &nbsp;&nbsp;
-  <img src="SnakeGame/assets/apple.png" width="64" style="filter:hue-rotate(80deg)"  alt="Apple yellow"/>
+  <img src="snake/SnakeGame/assets/apple.png" width="64" style="filter:hue-rotate(80deg)"  alt="Apple yellow"/>
   &nbsp;&nbsp;
-  <img src="SnakeGame/assets/apple.png" width="64" style="filter:hue-rotate(160deg)" alt="Apple cyan"/>
+  <img src="snake/SnakeGame/assets/apple.png" width="64" style="filter:hue-rotate(160deg)" alt="Apple cyan"/>
   &nbsp;&nbsp;
-  <img src="SnakeGame/assets/apple.png" width="64" style="filter:hue-rotate(240deg)" alt="Apple pink"/>
+  <img src="snake/SnakeGame/assets/apple.png" width="64" style="filter:hue-rotate(240deg)" alt="Apple pink"/>
 </p>
 
 > Five apples are on the board at all times, each tinted a different colour by the renderer.
